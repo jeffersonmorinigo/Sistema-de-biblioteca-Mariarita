@@ -21,9 +21,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Book, Student } from '@/lib/types';
+import { StudentCombobox } from './StudentCombobox';
 
 const loanSchema = z.object({
   studentId: z.string().min(1, 'Selecione um aluno'),
@@ -47,6 +48,9 @@ const LoanForm = ({ students, books, onSubmit, closeDialog }: LoanFormProps) => 
     formState: { errors },
   } = useForm<LoanFormData>({
     resolver: zodResolver(loanSchema),
+    defaultValues: {
+      expectedReturnDate: addDays(new Date(), 15),
+    },
   });
 
   const availableBooks = books.filter(book => book.quantity > 0);
@@ -69,18 +73,11 @@ const LoanForm = ({ students, books, onSubmit, closeDialog }: LoanFormProps) => 
               name="studentId"
               control={control}
               render={({ field }) => (
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um aluno" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {students.map(student => (
-                      <SelectItem key={student.id} value={student.id}>
-                        {student.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <StudentCombobox
+                  students={students}
+                  value={field.value}
+                  onChange={field.onChange}
+                />
               )}
             />
             {errors.studentId && <p className="text-red-500 text-sm">{errors.studentId.message}</p>}
