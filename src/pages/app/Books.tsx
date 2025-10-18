@@ -50,13 +50,24 @@ const BooksPage = () => {
   }, [books, searchTerm]);
 
   const handleAddBook = (data: BookFormData) => {
-    setBooks([...books, { ...data, id: generateId() }]);
+    const newBook: Book = {
+      id: generateId(),
+      code: data.code,
+      title: data.title,
+      author: data.author,
+      category: data.category,
+      quantity: data.quantity,
+      year: data.year,
+    };
+    setBooks([...books, newBook]);
     showSuccess('Livro adicionado com sucesso!');
   };
 
   const handleEditBook = (data: BookFormData) => {
     if (!selectedBook) return;
-    setBooks(books.map(b => b.id === selectedBook.id ? { ...selectedBook, ...data } : b));
+    setBooks(
+      books.map((b): Book => (b.id === selectedBook.id ? { ...b, ...data } : b))
+    );
     showSuccess('Livro atualizado com sucesso!');
     setSelectedBook(null);
   };
