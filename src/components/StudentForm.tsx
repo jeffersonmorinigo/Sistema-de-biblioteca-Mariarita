@@ -42,7 +42,13 @@ const StudentForm = ({ student, onSubmit, closeDialog }: StudentFormProps) => {
   });
 
   const handleFormSubmit = (data: StudentFormData) => {
-    onSubmit(data);
+    // Transform name and class to uppercase before submitting
+    const transformedData = {
+      ...data,
+      name: data.name.toUpperCase(),
+      class: data.class.toUpperCase(),
+    };
+    onSubmit(transformedData);
     closeDialog();
   };
 
@@ -60,12 +66,12 @@ const StudentForm = ({ student, onSubmit, closeDialog }: StudentFormProps) => {
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="name" className="text-right">Nome Completo</Label>
-            <Input id="name" {...register('name')} className="col-span-3" />
+            <Input id="name" {...register('name')} className="col-span-3 uppercase" />
             {errors.name && <p className="col-span-4 text-red-500 text-sm text-right">{errors.name.message}</p>}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="class" className="text-right">Turma</Label>
-            <Input id="class" {...register('class')} className="col-span-3" />
+            <Input id="class" {...register('class')} className="col-span-3 uppercase" />
             {errors.class && <p className="col-span-4 text-red-500 text-sm text-right">{errors.class.message}</p>}
           </div>
         </div>
