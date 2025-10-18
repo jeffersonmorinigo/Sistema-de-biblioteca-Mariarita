@@ -29,7 +29,11 @@ import {
 import { PlusCircle, Search, Edit, Trash2 } from 'lucide-react';
 import BookForm, { BookFormData } from '@/components/BookForm';
 import { showSuccess } from '@/utils/toast';
-import { v4 as uuidv4 } from 'uuid';
+
+// Simple ID generator to avoid external dependencies
+const generateId = () => {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+};
 
 const BooksPage = () => {
   const [books, setBooks] = useLocalStorage<Book[]>('books', []);
@@ -46,7 +50,7 @@ const BooksPage = () => {
   }, [books, searchTerm]);
 
   const handleAddBook = (data: BookFormData) => {
-    setBooks([...books, { ...data, id: uuidv4() }]);
+    setBooks([...books, { ...data, id: generateId() }]);
     showSuccess('Livro adicionado com sucesso!');
   };
 
