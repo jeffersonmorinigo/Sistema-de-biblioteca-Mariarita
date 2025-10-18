@@ -10,11 +10,9 @@ export interface Book {
 
 export interface Student {
   id: string;
-  registration: string;
-  name: string;
-  class: string;
-  phone: string;
-  email: string;
+  registration: string; // RA
+  name: string;         // Nome Completo
+  class: string;        // Turma
 }
 
 export interface Loan {

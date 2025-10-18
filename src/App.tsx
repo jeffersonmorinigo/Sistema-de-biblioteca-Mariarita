@@ -4,6 +4,7 @@ import PrivateRoute from './auth/PrivateRoute';
 import LoginPage from './pages/Login';
 import BooksPage from './pages/app/Books';
 import UsersPage from './pages/app/Users';
+import StudentsPage from './pages/app/Students';
 import NotFound from './pages/NotFound';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -23,8 +24,7 @@ const AppRoutes = () => {
         <Route element={<PrivateRoute />}>
           <Route path="/books" element={<BooksPage />} />
           <Route path="/users" element={<UsersPage />} />
-          {/* Add other protected routes here in the future */}
-          {/* e.g., <Route path="/students" element={<StudentsPage />} /> */}
+          <Route path="/students" element={<StudentsPage />} />
         </Route>
 
         <Route path="/" element={<HomeRedirect />} />
