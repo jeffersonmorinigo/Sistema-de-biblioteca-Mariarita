@@ -9,17 +9,17 @@ import { Library } from 'lucide-react';
 import { showError } from '@/utils/toast';
 
 const LoginPage = () => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
   const { login } = useAuth();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (login(username, password)) {
+    if (login(email, password)) {
       navigate('/');
     } else {
-      showError('Usuário ou senha inválidos.');
+      showError('Email ou senha inválidos.');
     }
   };
 
@@ -37,14 +37,14 @@ const LoginPage = () => {
           <form onSubmit={handleLogin}>
             <div className="grid gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="username">Usuário</Label>
+                <Label htmlFor="email">Email</Label>
                 <Input
-                  id="username"
-                  type="text"
-                  placeholder="admin"
+                  id="email"
+                  type="email"
+                  placeholder="admin@biblioteca.com"
                   required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
               <div className="grid gap-2">
@@ -52,7 +52,7 @@ const LoginPage = () => {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="1234"
+                  placeholder="••••••••"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

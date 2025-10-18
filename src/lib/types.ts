@@ -25,3 +25,10 @@ export interface Loan {
   expectedReturnDate: string;
   returnDate?: string;
 }
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+}
