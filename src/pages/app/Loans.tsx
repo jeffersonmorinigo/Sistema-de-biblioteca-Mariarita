@@ -177,7 +177,6 @@ const LoansPage = () => {
               students={students}
               books={books}
               onSubmit={handleAddLoan} 
-              closeDialog={() => setIsDialogOpen(false)}
             />
           </Dialog>
         </div>

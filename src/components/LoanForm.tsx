@@ -32,17 +32,19 @@ interface LoanFormProps {
   students: Student[];
   books: Book[];
   onSubmit: (data: LoanFormData) => void;
-  closeDialog: () => void;
 }
 
-const LoanForm = ({ students, books, onSubmit, closeDialog }: LoanFormProps) => {
+const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
   const {
     handleSubmit,
     control,
     formState: { errors },
+    reset,
   } = useForm<LoanFormData>({
     resolver: zodResolver(loanSchema),
     defaultValues: {
+      studentId: '',
+      bookId: '',
       expectedReturnDate: addDays(new Date(), 15),
     },
   });
@@ -51,7 +53,7 @@ const LoanForm = ({ students, books, onSubmit, closeDialog }: LoanFormProps) => 
 
   const handleFormSubmit = (data: LoanFormData) => {
     onSubmit(data);
-    closeDialog();
+    reset(); // Limpa o formulário para o próximo registro
   };
 
   return (
