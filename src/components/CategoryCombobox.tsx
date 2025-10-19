@@ -22,8 +22,8 @@ interface CategoryComboboxProps {
   categories: string[];
   value: string;
   onChange: (value: string) => void;
-  onAddCategory: (value: string) => void;
-  onDeleteCategory: (value: string) => void;
+  onAddCategory?: (value: string) => void;
+  onDeleteCategory?: (value: string) => void;
 }
 
 export function CategoryCombobox({ categories, value, onChange, onAddCategory, onDeleteCategory }: CategoryComboboxProps) {
@@ -32,7 +32,7 @@ export function CategoryCombobox({ categories, value, onChange, onAddCategory, o
 
   const handleCreate = () => {
     const formattedValue = inputValue.toUpperCase();
-    if (formattedValue && !categories.includes(formattedValue)) {
+    if (formattedValue && !categories.includes(formattedValue) && onAddCategory) {
       onAddCategory(formattedValue);
       onChange(formattedValue);
       setInputValue("");
@@ -42,10 +42,12 @@ export function CategoryCombobox({ categories, value, onChange, onAddCategory, o
 
   const handleDelete = (e: React.MouseEvent, categoryName: string) => {
     e.stopPropagation();
-    onDeleteCategory(categoryName);
+    if (onDeleteCategory) {
+      onDeleteCategory(categoryName);
+    }
   };
 
-  const showCreateOption = inputValue && !categories.some(c => c.toLowerCase() === inputValue.toLowerCase());
+  const showCreateOption = onAddCategory && inputValue && !categories.some(c => c.toLowerCase() === inputValue.toLowerCase());
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -56,14 +58,14 @@ export function CategoryCombobox({ categories, value, onChange, onAddCategory, o
           aria-expanded={open}
           className="w-full justify-between"
         >
-          {value || "Selecione ou crie uma categoria..."}
+          {value || "Selecione uma categoria..."}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
         <Command>
           <CommandInput 
-            placeholder="Buscar ou criar categoria..." 
+            placeholder={onAddCategory ? "Buscar ou criar categoria..." : "Buscar categoria..."}
             value={inputValue}
             onValueChange={setInputValue}
             className="uppercase placeholder:normal-case"
@@ -98,9 +100,11 @@ export function CategoryCombobox({ categories, value, onChange, onAddCategory, o
                     )}
                   />
                   <span className="flex-1">{categoryName}</span>
-                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => handleDelete(e, categoryName)}>
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
+                  {onDeleteCategory && (
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => handleDelete(e, categoryName)}>
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  )}
                 </CommandItem>
               ))}
             </CommandGroup>

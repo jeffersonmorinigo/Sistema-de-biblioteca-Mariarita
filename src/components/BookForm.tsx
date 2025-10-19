@@ -30,11 +30,9 @@ interface BookFormProps {
   onSubmit: (data: BookFormData) => void;
   closeDialog: () => void;
   categories: string[];
-  onAddCategory: (value: string) => void;
-  onDeleteCategory: (value: string) => void;
 }
 
-const BookForm = ({ book, onSubmit, closeDialog, categories, onAddCategory, onDeleteCategory }: BookFormProps) => {
+const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) => {
   const {
     register,
     handleSubmit,
@@ -90,8 +88,6 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, onAddCategory, onDe
                     categories={categories}
                     value={field.value}
                     onChange={field.onChange}
-                    onAddCategory={onAddCategory}
-                    onDeleteCategory={onDeleteCategory}
                   />
                 )}
               />

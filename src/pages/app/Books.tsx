@@ -28,13 +28,13 @@ import {
 } from '@/components/ui/alert-dialog';
 import { PlusCircle, Search, Edit, Trash2 } from 'lucide-react';
 import BookForm, { BookFormData } from '@/components/BookForm';
-import { showSuccess, showError } from '@/utils/toast';
+import { showSuccess } from '@/utils/toast';
 
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
 const BooksPage = () => {
   const [books, setBooks] = useLocalStorage<Book[]>('books', []);
-  const [categories, setCategories] = useLocalStorage<string[]>('book_categories', ['GERAL']);
+  const [categories] = useLocalStorage<string[]>('book_categories', ['GERAL']);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
@@ -75,22 +75,6 @@ const BooksPage = () => {
     showSuccess('Livro excluído com sucesso!');
   };
 
-  const handleAddCategory = (newCategory: string) => {
-    if (!categories.includes(newCategory)) {
-      setCategories([...categories, newCategory].sort());
-      showSuccess(`Categoria "${newCategory}" adicionada!`);
-    }
-  };
-
-  const handleDeleteCategory = (categoryToDelete: string) => {
-    if (books.some(book => book.category === categoryToDelete)) {
-      showError('Não é possível excluir uma categoria que está em uso por um livro.');
-      return;
-    }
-    setCategories(categories.filter(c => c !== categoryToDelete));
-    showSuccess(`Categoria "${categoryToDelete}" excluída!`);
-  };
-
   const openEditDialog = (book: Book) => {
     setSelectedBook(book);
     setIsDialogOpen(true);
@@ -128,8 +112,6 @@ const BooksPage = () => {
             onSubmit={selectedBook ? handleEditBook : handleAddBook} 
             closeDialog={() => setIsDialogOpen(false)}
             categories={categories}
-            onAddCategory={handleAddCategory}
-            onDeleteCategory={handleDeleteCategory}
           />
         </Dialog>
       </div>
