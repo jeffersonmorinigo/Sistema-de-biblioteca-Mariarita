@@ -16,7 +16,7 @@ app.use(express.static(path.join(__dirname, 'dist')));
 // 2. Rota "catch-all" para Single Page Applications (SPA)
 // Isso garante que, se o usuário recarregar a página em uma rota como /books,
 // o servidor ainda envie o index.html. O React Router cuidará do resto no lado do cliente.
-app.get('*', (req, res) => {
+app.get('/*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
