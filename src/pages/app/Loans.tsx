@@ -100,6 +100,8 @@ const LoansPage = () => {
       showSuccess("Nenhum empréstimo atrasado para relatar.");
       return;
     }
+    
+    const schoolName = JSON.parse(localStorage.getItem('schoolName') || '""') || 'Nome da Escola não definido';
 
     const reportWindow = window.open('', '_blank');
     if (reportWindow) {
@@ -112,11 +114,16 @@ const LoansPage = () => {
               table { width: 100%; border-collapse: collapse; }
               th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
               th { background-color: #f2f2f2; }
-              h1 { text-align: center; }
+              h1, h2 { text-align: center; margin: 0; }
+              h2 { font-weight: normal; margin-bottom: 1em; }
+              .header { margin-bottom: 2em; }
             </style>
           </head>
           <body>
-            <h1>Relatório de Empréstimos Atrasados</h1>
+            <div class="header">
+              <h1>${schoolName}</h1>
+              <h2>Relatório de Empréstimos Atrasados</h2>
+            </div>
             <p>Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</p>
             <table>
               <thead>

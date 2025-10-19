@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Book, Users, ArrowLeftRight, DatabaseBackup, LogOut, Library, UserCog } from 'lucide-react';
+import { Book, Users, ArrowLeftRight, DatabaseBackup, LogOut, Library, UserCog, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/auth/AuthContext';
 import { cn } from '@/lib/utils';
@@ -9,6 +9,7 @@ const navItems = [
   { href: '/students', icon: Users, label: 'Alunos' },
   { href: '/loans', icon: ArrowLeftRight, label: 'Empréstimos' },
   { href: '/users', icon: UserCog, label: 'Usuários' },
+  { href: '/settings', icon: Settings, label: 'Configurações' },
   { href: '/backup', icon: DatabaseBackup, label: 'Backup & Restauração' },
 ];
 
