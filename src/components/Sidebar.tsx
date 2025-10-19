@@ -3,6 +3,7 @@ import { Book, Users, ArrowLeftRight, DatabaseBackup, LogOut, Library, UserCog, 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/auth/AuthContext';
 import { cn } from '@/lib/utils';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 const navItems = [
   { href: '/books', icon: Book, label: 'Livros' },
@@ -16,6 +17,7 @@ const navItems = [
 const Sidebar = () => {
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const [schoolName] = useLocalStorage('schoolName', '');
 
   const handleLogout = () => {
     logout();
@@ -24,9 +26,14 @@ const Sidebar = () => {
 
   return (
     <aside className="w-64 flex-shrink-0 bg-card border-r p-4 flex flex-col">
-      <div className="flex items-center justify-center gap-2 mb-8">
-        <Library className="w-8 h-8 text-primary" />
-        <h1 className="text-2xl font-bold text-center">Biblioteca</h1>
+      <div className="flex flex-col items-center justify-center gap-2 mb-8 text-center">
+        <div className="flex items-center gap-2">
+          <Library className="w-8 h-8 text-primary" />
+          <h1 className="text-2xl font-bold">Biblioteca</h1>
+        </div>
+        {schoolName && (
+          <p className="text-sm text-muted-foreground px-2">{schoolName}</p>
+        )}
       </div>
       <nav className="flex-grow">
         <ul>
