@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Loan, Book, Student } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -43,22 +43,6 @@ const LoansPage = () => {
 
   const studentMap = useMemo(() => new Map(students.map(s => [s.id, s])), [students]);
   const bookMap = useMemo(() => new Map(books.map(b => [b.id, b.title])), [books]);
-
-  // Overdue loans alert
-  useEffect(() => {
-    const overdueCheckPerformed = sessionStorage.getItem('overdue_check_performed');
-    if (overdueCheckPerformed) return;
-
-    const overdueLoans = loans.filter(loan => 
-      !loan.returnDate && isAfter(new Date(), new Date(loan.expectedReturnDate))
-    );
-
-    if (overdueLoans.length > 0) {
-      showError(`Atenção: Existem ${overdueLoans.length} empréstimos com devolução atrasada.`);
-    }
-
-    sessionStorage.setItem('overdue_check_performed', 'true');
-  }, [loans]);
 
   const handleAddLoan = (data: LoanFormData) => {
     const hasActiveLoan = loans.some(
