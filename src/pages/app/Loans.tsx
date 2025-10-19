@@ -61,6 +61,15 @@ const LoansPage = () => {
   }, [loans]);
 
   const handleAddLoan = (data: LoanFormData) => {
+    const hasActiveLoan = loans.some(
+      loan => loan.studentId === data.studentId && loan.bookId === data.bookId && !loan.returnDate
+    );
+
+    if (hasActiveLoan) {
+      showError('Este aluno já possui um empréstimo ativo para este livro.');
+      return;
+    }
+
     const newLoan: Loan = {
       id: generateId(),
       studentId: data.studentId,

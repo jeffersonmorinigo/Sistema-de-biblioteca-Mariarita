@@ -59,6 +59,10 @@ const StudentsPage = () => {
   }, [students, searchTerm]);
 
   const handleAddStudent = (data: StudentFormData) => {
+    if (students.some(student => student.registration === data.registration)) {
+      showError('Já existe um aluno cadastrado com este RA.');
+      return;
+    }
     const newStudent: Student = {
       id: generateId(),
       registration: data.registration,
@@ -71,6 +75,10 @@ const StudentsPage = () => {
 
   const handleEditStudent = (data: StudentFormData) => {
     if (!selectedStudent) return;
+    if (students.some(s => s.registration === data.registration && s.id !== selectedStudent.id)) {
+      showError('Já existe outro aluno cadastrado com este RA.');
+      return;
+    }
     setStudents(
       students.map((s): Student => (s.id === selectedStudent.id ? { ...s, ...data } : s))
     );

@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { PlusCircle, Search, Edit, Trash2 } from 'lucide-react';
 import BookForm, { BookFormData } from '@/components/BookForm';
-import { showSuccess } from '@/utils/toast';
+import { showSuccess, showError } from '@/utils/toast';
 
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
@@ -48,6 +48,10 @@ const BooksPage = () => {
   }, [books, searchTerm]);
 
   const handleAddBook = (data: BookFormData) => {
+    if (books.some(book => book.code.toUpperCase() === data.code.toUpperCase())) {
+      showError('Já existe um livro cadastrado com este código.');
+      return;
+    }
     const newBook: Book = {
       id: generateId(),
       code: data.code,
@@ -63,6 +67,10 @@ const BooksPage = () => {
 
   const handleEditBook = (data: BookFormData) => {
     if (!selectedBook) return;
+    if (books.some(b => b.code.toUpperCase() === data.code.toUpperCase() && b.id !== selectedBook.id)) {
+      showError('Já existe outro livro cadastrado com este código.');
+      return;
+    }
     setBooks(
       books.map((b): Book => (b.id === selectedBook.id ? { ...b, ...data } : b))
     );
