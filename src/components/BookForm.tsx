@@ -1,4 +1,4 @@
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { Book } from '@/lib/types';
+import { CategoryCombobox } from './CategoryCombobox';
 
 const bookSchema = z.object({
   code: z.string().min(1, 'Código é obrigatório'),
@@ -28,12 +29,16 @@ interface BookFormProps {
   book?: Book | null;
   onSubmit: (data: BookFormData) => void;
   closeDialog: () => void;
+  categories: string[];
+  onAddCategory: (value: string) => void;
+  onDeleteCategory: (value: string) => void;
 }
 
-const BookForm = ({ book, onSubmit, closeDialog }: BookFormProps) => {
+const BookForm = ({ book, onSubmit, closeDialog, categories, onAddCategory, onDeleteCategory }: BookFormProps) => {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm<BookFormData>({
     resolver: zodResolver(bookSchema),
@@ -76,7 +81,21 @@ const BookForm = ({ book, onSubmit, closeDialog }: BookFormProps) => {
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="category" className="text-right">Categoria</Label>
-            <Input id="category" {...register('category')} className="col-span-3" />
+            <div className="col-span-3">
+              <Controller
+                name="category"
+                control={control}
+                render={({ field }) => (
+                  <CategoryCombobox
+                    categories={categories}
+                    value={field.value}
+                    onChange={field.onChange}
+                    onAddCategory={onAddCategory}
+                    onDeleteCategory={onDeleteCategory}
+                  />
+                )}
+              />
+            </div>
             {errors.category && <p className="col-span-4 text-red-500 text-sm text-right">{errors.category.message}</p>}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
