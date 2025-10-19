@@ -116,6 +116,7 @@ const LoanForm = ({ students, books, onSubmit, closeDialog }: LoanFormProps) => 
                       selected={field.value}
                       onSelect={field.onChange}
                       initialFocus
+                      locale={ptBR}
                     />
                   </PopoverContent>
                 </Popover>
