@@ -19,6 +19,7 @@ import { ptBR } from 'date-fns/locale';
 import { Book, Student } from '@/lib/types';
 import { StudentCombobox } from './StudentCombobox';
 import { BookCombobox } from './BookCombobox';
+import { useState } from 'react';
 
 const loanSchema = z.object({
   studentId: z.string().min(1, 'Selecione um aluno'),
@@ -49,11 +50,18 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
     },
   });
 
+  // Local state to ensure immediate UI updates
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [selectedBookId, setSelectedBookId] = useState('');
+
   const availableBooks = books.filter(book => book.quantity > 0);
 
   const handleFormSubmit = (data: LoanFormData) => {
     onSubmit(data);
-    reset(); // Limpa o formulário para o próximo registro
+    reset(); // Resets react-hook-form state
+    // Manually reset local state to clear the comboboxes visually
+    setSelectedStudentId('');
+    setSelectedBookId('');
   };
 
   return (
@@ -71,8 +79,11 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
               render={({ field }) => (
                 <StudentCombobox
                   students={students}
-                  value={field.value}
-                  onChange={field.onChange}
+                  value={selectedStudentId}
+                  onChange={(value) => {
+                    field.onChange(value);
+                    setSelectedStudentId(value);
+                  }}
                 />
               )}
             />
@@ -86,8 +97,11 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
               render={({ field }) => (
                 <BookCombobox
                   books={availableBooks}
-                  value={field.value}
-                  onChange={field.onChange}
+                  value={selectedBookId}
+                  onChange={(value) => {
+                    field.onChange(value);
+                    setSelectedBookId(value);
+                  }}
                 />
               )}
             />
