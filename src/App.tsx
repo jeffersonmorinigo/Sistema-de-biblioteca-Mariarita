@@ -7,6 +7,7 @@ import UsersPage from './pages/app/Users';
 import StudentsPage from './pages/app/Students';
 import LoansPage from './pages/app/Loans';
 import SettingsPage from './pages/app/Settings';
+import BackupPage from './pages/app/Backup'; // Importando a nova página
 import NotFound from './pages/NotFound';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -29,6 +30,7 @@ const AppRoutes = () => {
           <Route path="/students" element={<StudentsPage />} />
           <Route path="/loans" element={<LoansPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/backup" element={<BackupPage />} /> {/* Adicionando a nova rota */}
         </Route>
 
         <Route path="/" element={<HomeRedirect />} />
