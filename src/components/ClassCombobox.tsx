@@ -65,6 +65,7 @@ export function ClassCombobox({ classes, value, onChange, onAddClass, onDeleteCl
             placeholder="Buscar ou criar turma..." 
             value={inputValue}
             onValueChange={setInputValue}
+            className="uppercase placeholder:normal-case"
           />
           <CommandList>
             <CommandEmpty>
@@ -77,7 +78,7 @@ export function ClassCombobox({ classes, value, onChange, onAddClass, onDeleteCl
                   className="cursor-pointer"
                 >
                   <PlusCircle className="mr-2 h-4 w-4" />
-                  Criar turma: "{inputValue}"
+                  Criar turma: "{inputValue.toUpperCase()}"
                 </CommandItem>
               )}
               {classes.map((className) => (

@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Student } from '@/lib/types';
 import { ClassCombobox } from './ClassCombobox';
+import { useState, useEffect } from 'react';
 
 const studentSchema = z.object({
   registration: z.string().min(1, 'RA é obrigatório'),
@@ -45,6 +46,14 @@ const StudentForm = ({ student, onSubmit, closeDialog, classes, onAddClass, onDe
       class: '',
     },
   });
+
+  // Local state to ensure immediate visual updates
+  const [currentClass, setCurrentClass] = useState(student?.class || '');
+
+  useEffect(() => {
+    // Sync local state if the student prop changes (e.g., when editing)
+    setCurrentClass(student?.class || '');
+  }, [student]);
 
   const handleFormSubmit = (data: StudentFormData) => {
     const transformedData = {
@@ -82,8 +91,11 @@ const StudentForm = ({ student, onSubmit, closeDialog, classes, onAddClass, onDe
                 render={({ field }) => (
                   <ClassCombobox
                     classes={classes}
-                    value={field.value}
-                    onChange={field.onChange}
+                    value={currentClass}
+                    onChange={(newValue) => {
+                      setCurrentClass(newValue); // Update visual state immediately
+                      field.onChange(newValue); // Update form state for submission
+                    }}
                     onAddClass={onAddClass}
                     onDeleteClass={onDeleteClass}
                   />
