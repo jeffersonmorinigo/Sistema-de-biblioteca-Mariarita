@@ -51,7 +51,13 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
   });
 
   const handleFormSubmit = (data: BookFormData) => {
-    onSubmit(data);
+    const transformedData = {
+      ...data,
+      code: data.code.toUpperCase(),
+      title: data.title.toUpperCase(),
+      author: data.author.toUpperCase(),
+    };
+    onSubmit(transformedData);
     closeDialog();
   };
 
@@ -64,17 +70,17 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="code" className="text-right">Código</Label>
-            <Input id="code" {...register('code')} className="col-span-3" />
+            <Input id="code" {...register('code')} className="col-span-3 uppercase" />
             {errors.code && <p className="col-span-4 text-red-500 text-sm text-right">{errors.code.message}</p>}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="title" className="text-right">Título</Label>
-            <Input id="title" {...register('title')} className="col-span-3" />
+            <Input id="title" {...register('title')} className="col-span-3 uppercase" />
             {errors.title && <p className="col-span-4 text-red-500 text-sm text-right">{errors.title.message}</p>}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="author" className="text-right">Autor</Label>
-            <Input id="author" {...register('author')} className="col-span-3" />
+            <Input id="author" {...register('author')} className="col-span-3 uppercase" />
             {errors.author && <p className="col-span-4 text-red-500 text-sm text-right">{errors.author.message}</p>}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
