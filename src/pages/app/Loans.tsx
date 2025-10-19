@@ -46,15 +46,40 @@ const LoansPage = () => {
   const studentMap = useMemo(() => new Map(students.map(s => [s.id, s])), [students]);
   const bookMap = useMemo(() => new Map(books.map(b => [b.id, b.title])), [books]);
 
-  const filteredLoans = useMemo(() => {
-    if (!searchTerm) {
-      return loans;
-    }
-    const lowercasedFilter = searchTerm.toLowerCase();
-    return loans.filter(loan => {
+  const filteredAndSortedLoans = useMemo(() => {
+    const filtered = loans.filter(loan => {
+      if (!searchTerm) return true;
+      const lowercasedFilter = searchTerm.toLowerCase();
       const studentName = studentMap.get(loan.studentId)?.name.toLowerCase() || '';
       const bookTitle = bookMap.get(loan.bookId)?.toLowerCase() || '';
       return studentName.includes(lowercasedFilter) || bookTitle.includes(lowercasedFilter);
+    });
+
+    return filtered.sort((a, b) => {
+      // 1. Prioritize active loans over returned loans
+      if (a.returnDate && !b.returnDate) return 1;
+      if (!a.returnDate && b.returnDate) return -1;
+
+      // If both are active (not returned)
+      if (!a.returnDate && !b.returnDate) {
+        const isOverdueA = isAfter(new Date(), new Date(a.expectedReturnDate));
+        const isOverdueB = isAfter(new Date(), new Date(b.expectedReturnDate));
+
+        // 2. Prioritize overdue loans
+        if (isOverdueA && !isOverdueB) return -1;
+        if (!isOverdueA && isOverdueB) return 1;
+
+        // 3. For loans with the same status (both overdue or both on-time),
+        // sort by the expected return date (most urgent first)
+        return new Date(a.expectedReturnDate).getTime() - new Date(b.expectedReturnDate).getTime();
+      }
+
+      // If both are returned, sort by the actual return date (most recent first)
+      if (a.returnDate && b.returnDate) {
+        return new Date(b.returnDate).getTime() - new Date(a.returnDate).getTime();
+      }
+
+      return 0;
     });
   }, [loans, searchTerm, studentMap, bookMap]);
 
@@ -212,8 +237,8 @@ const LoansPage = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredLoans.length > 0 ? (
-              filteredLoans.map(loan => {
+            {filteredAndSortedLoans.length > 0 ? (
+              filteredAndSortedLoans.map(loan => {
                 const isOverdue = !loan.returnDate && isAfter(new Date(), new Date(loan.expectedReturnDate));
                 return (
                   <TableRow key={loan.id} className={cn(isOverdue && 'bg-red-100 dark:bg-red-900/20')}>
