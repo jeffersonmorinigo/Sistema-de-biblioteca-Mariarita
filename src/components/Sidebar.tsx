@@ -6,9 +6,9 @@ import { cn } from '@/lib/utils';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 const navItems = [
-  { href: '/books', icon: Book, label: 'Livros' },
-  { href: '/students', icon: Users, label: 'Alunos' },
   { href: '/loans', icon: ArrowLeftRight, label: 'Empréstimos' },
+  { href: '/students', icon: Users, label: 'Alunos' },
+  { href: '/books', icon: Book, label: 'Livros' },
   { href: '/users', icon: UserCog, label: 'Usuários' },
   { href: '/settings', icon: Settings, label: 'Configurações' },
   { href: '/backup', icon: DatabaseBackup, label: 'Backup & Restauração' },

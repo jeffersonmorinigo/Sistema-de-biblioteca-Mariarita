@@ -7,14 +7,14 @@ import UsersPage from './pages/app/Users';
 import StudentsPage from './pages/app/Students';
 import LoansPage from './pages/app/Loans';
 import SettingsPage from './pages/app/Settings';
-import BackupPage from './pages/app/Backup'; // Importando a nova página
+import BackupPage from './pages/app/Backup';
 import NotFound from './pages/NotFound';
 import { Toaster } from '@/components/ui/sonner';
 
 // A simple component to redirect based on auth status
 const HomeRedirect = () => {
   const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <Navigate to="/books" replace /> : <Navigate to="/login" replace />;
+  return isAuthenticated ? <Navigate to="/loans" replace /> : <Navigate to="/login" replace />;
 };
 
 const AppRoutes = () => {
@@ -30,7 +30,7 @@ const AppRoutes = () => {
           <Route path="/students" element={<StudentsPage />} />
           <Route path="/loans" element={<LoansPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/backup" element={<BackupPage />} /> {/* Adicionando a nova rota */}
+          <Route path="/backup" element={<BackupPage />} />
         </Route>
 
         <Route path="/" element={<HomeRedirect />} />
