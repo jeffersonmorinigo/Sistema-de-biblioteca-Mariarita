@@ -10,13 +10,6 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon } from 'lucide-react';
@@ -25,6 +18,7 @@ import { format, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Book, Student } from '@/lib/types';
 import { StudentCombobox } from './StudentCombobox';
+import { BookCombobox } from './BookCombobox';
 
 const loanSchema = z.object({
   studentId: z.string().min(1, 'Selecione um aluno'),
@@ -88,18 +82,11 @@ const LoanForm = ({ students, books, onSubmit, closeDialog }: LoanFormProps) => 
               name="bookId"
               control={control}
               render={({ field }) => (
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um livro" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableBooks.map(book => (
-                      <SelectItem key={book.id} value={book.id}>
-                        {book.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <BookCombobox
+                  books={availableBooks}
+                  value={field.value}
+                  onChange={field.onChange}
+                />
               )}
             />
             {errors.bookId && <p className="text-red-500 text-sm">{errors.bookId.message}</p>}
