@@ -11,14 +11,8 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Student } from '@/lib/types';
+import { ClassCombobox } from './ClassCombobox';
 
 const studentSchema = z.object({
   registration: z.string().min(1, 'RA é obrigatório'),
@@ -32,21 +26,12 @@ interface StudentFormProps {
   student?: Student | null;
   onSubmit: (data: StudentFormData) => void;
   closeDialog: () => void;
+  classes: string[];
+  onAddClass: (value: string) => void;
+  onDeleteClass: (value: string) => void;
 }
 
-const classOptions = [
-  '1º ANO A', '1º ANO B', '1º ANO C',
-  '2º ANO A', '2º ANO B', '2º ANO C',
-  '3º ANO A', '3º ANO B', '3º ANO C',
-  '4º ANO A', '4º ANO B', '4º ANO C',
-  '5º ANO A', '5º ANO B', '5º ANO C',
-  '6º ANO A', '6º ANO B', '6º ANO C',
-  '7º ANO A', '7º ANO B', '7º ANO C',
-  '8º ANO A', '8º ANO B', '8º ANO C',
-  '9º ANO A', '9º ANO B', '9º ANO C',
-];
-
-const StudentForm = ({ student, onSubmit, closeDialog }: StudentFormProps) => {
+const StudentForm = ({ student, onSubmit, closeDialog, classes, onAddClass, onDeleteClass }: StudentFormProps) => {
   const {
     register,
     handleSubmit,
@@ -65,6 +50,7 @@ const StudentForm = ({ student, onSubmit, closeDialog }: StudentFormProps) => {
     const transformedData = {
       ...data,
       name: data.name.toUpperCase(),
+      class: data.class.toUpperCase(),
     };
     onSubmit(transformedData);
     closeDialog();
@@ -89,24 +75,21 @@ const StudentForm = ({ student, onSubmit, closeDialog }: StudentFormProps) => {
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="class" className="text-right">Turma</Label>
-            <Controller
-              name="class"
-              control={control}
-              render={({ field }) => (
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Selecione a turma" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classOptions.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
+            <div className="col-span-3">
+              <Controller
+                name="class"
+                control={control}
+                render={({ field }) => (
+                  <ClassCombobox
+                    classes={classes}
+                    value={field.value}
+                    onChange={field.onChange}
+                    onAddClass={onAddClass}
+                    onDeleteClass={onDeleteClass}
+                  />
+                )}
+              />
+            </div>
             {errors.class && <p className="col-span-4 text-red-500 text-sm text-right">{errors.class.message}</p>}
           </div>
         </div>

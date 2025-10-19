@@ -28,12 +28,25 @@ import {
 } from '@/components/ui/alert-dialog';
 import { PlusCircle, Search, Edit, Trash2 } from 'lucide-react';
 import StudentForm, { StudentFormData } from '@/components/StudentForm';
-import { showSuccess } from '@/utils/toast';
+import { showSuccess, showError } from '@/utils/toast';
 
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
+const defaultClasses = [
+  '1º ANO A', '1º ANO B', '1º ANO C',
+  '2º ANO A', '2º ANO B', '2º ANO C',
+  '3º ANO A', '3º ANO B', '3º ANO C',
+  '4º ANO A', '4º ANO B', '4º ANO C',
+  '5º ANO A', '5º ANO B', '5º ANO C',
+  '6º ANO A', '6º ANO B', '6º ANO C',
+  '7º ANO A', '7º ANO B', '7º ANO C',
+  '8º ANO A', '8º ANO B', '8º ANO C',
+  '9º ANO A', '9º ANO B', '9º ANO C',
+];
+
 const StudentsPage = () => {
   const [students, setStudents] = useLocalStorage<Student[]>('students', []);
+  const [classes, setClasses] = useLocalStorage<string[]>('student_classes', defaultClasses);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -68,6 +81,22 @@ const StudentsPage = () => {
   const handleDeleteStudent = (id: string) => {
     setStudents(students.filter(s => s.id !== id));
     showSuccess('Aluno excluído com sucesso!');
+  };
+
+  const handleAddClass = (newClass: string) => {
+    if (!classes.includes(newClass)) {
+      setClasses([...classes, newClass].sort());
+      showSuccess(`Turma "${newClass}" adicionada!`);
+    }
+  };
+
+  const handleDeleteClass = (classToDelete: string) => {
+    if (students.some(s => s.class === classToDelete)) {
+      showError('Não é possível excluir uma turma que está em uso por um aluno.');
+      return;
+    }
+    setClasses(classes.filter(c => c !== classToDelete));
+    showSuccess(`Turma "${classToDelete}" excluída!`);
   };
 
   const openEditDialog = (student: Student) => {
@@ -106,6 +135,9 @@ const StudentsPage = () => {
             student={selectedStudent} 
             onSubmit={selectedStudent ? handleEditStudent : handleAddStudent} 
             closeDialog={() => setIsDialogOpen(false)}
+            classes={classes}
+            onAddClass={handleAddClass}
+            onDeleteClass={handleDeleteClass}
           />
         </Dialog>
       </div>
