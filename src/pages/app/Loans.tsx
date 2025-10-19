@@ -3,6 +3,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Loan, Book, Student } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -26,7 +27,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { PlusCircle, Trash2, Undo2, FileText } from 'lucide-react';
+import { PlusCircle, Trash2, Undo2, FileText, Search } from 'lucide-react';
 import LoanForm, { LoanFormData } from '@/components/LoanForm';
 import { showSuccess, showError } from '@/utils/toast';
 import { format, isAfter } from 'date-fns';
@@ -40,9 +41,22 @@ const LoansPage = () => {
   const [books, setBooks] = useLocalStorage<Book[]>('books', []);
   const [students, setStudents] = useLocalStorage<Student[]>('students', []);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const studentMap = useMemo(() => new Map(students.map(s => [s.id, s])), [students]);
   const bookMap = useMemo(() => new Map(books.map(b => [b.id, b.title])), [books]);
+
+  const filteredLoans = useMemo(() => {
+    if (!searchTerm) {
+      return loans;
+    }
+    const lowercasedFilter = searchTerm.toLowerCase();
+    return loans.filter(loan => {
+      const studentName = studentMap.get(loan.studentId)?.name.toLowerCase() || '';
+      const bookTitle = bookMap.get(loan.bookId)?.toLowerCase() || '';
+      return studentName.includes(lowercasedFilter) || bookTitle.includes(lowercasedFilter);
+    });
+  }, [loans, searchTerm, studentMap, bookMap]);
 
   const handleAddLoan = (data: LoanFormData) => {
     const hasActiveLoan = loans.some(
@@ -152,16 +166,26 @@ const LoansPage = () => {
 
   return (
     <div className="space-y-6">
+      <h1 className="text-3xl font-bold">Gerenciamento de Empréstimos</h1>
+      
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-        <h1 className="text-3xl font-bold">Gerenciamento de Empréstimos</h1>
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por aluno ou livro..."
+            className="pl-10"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <Button onClick={handleGenerateReport} variant="outline" className="w-full">
+          <Button onClick={handleGenerateReport} variant="outline" className="w-full sm:w-auto">
             <FileText className="mr-2 h-4 w-4" />
             Relatório de Atrasos
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="w-full">
+              <Button className="w-full sm:w-auto">
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Registrar Empréstimo
               </Button>
@@ -188,8 +212,8 @@ const LoansPage = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loans.length > 0 ? (
-              loans.map(loan => {
+            {filteredLoans.length > 0 ? (
+              filteredLoans.map(loan => {
                 const isOverdue = !loan.returnDate && isAfter(new Date(), new Date(loan.expectedReturnDate));
                 return (
                   <TableRow key={loan.id} className={cn(isOverdue && 'bg-red-100 dark:bg-red-900/20')}>
@@ -241,7 +265,7 @@ const LoansPage = () => {
             ) : (
               <TableRow>
                 <TableCell colSpan={6} className="text-center h-24">
-                  Nenhum empréstimo registrado.
+                  {searchTerm ? "Nenhum empréstimo encontrado." : "Nenhum empréstimo registrado."}
                 </TableCell>
               </TableRow>
             )}
