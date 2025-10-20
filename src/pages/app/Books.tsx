@@ -131,21 +131,7 @@ const BooksPage = () => {
       return [...updatedPrevBooks, ...booksToAdd];
     });
 
-    const addedCount = booksToAdd.length;
-    const updatedCount = booksToUpdate.length;
-    
-    let successMessage = '';
-    if (addedCount > 0 && updatedCount > 0) {
-      successMessage = `${addedCount} livros adicionados e ${updatedCount} atualizados com sucesso!`;
-    } else if (addedCount > 0) {
-      successMessage = `${addedCount} livros adicionados com sucesso!`;
-    } else if (updatedCount > 0) {
-      successMessage = `${updatedCount} livros atualizados com sucesso!`;
-    } else {
-      successMessage = 'Nenhum livro novo para adicionar ou atualizar.';
-    }
-    
-    showSuccess(successMessage);
+    return { addedCount: booksToAdd.length, updatedCount: booksToUpdate.length };
   };
 
   const openEditDialog = (book: Book) => {

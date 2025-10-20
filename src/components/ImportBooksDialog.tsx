@@ -14,11 +14,11 @@ import {
 import { Book } from '@/lib/types';
 import { showError } from '@/utils/toast';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { FileText, Download, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { FileText, Download, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 
 interface ImportBooksDialogProps {
-  onImport: (newBooks: Omit<Book, 'id'>[]) => void;
+  onImport: (newBooks: Omit<Book, 'id'>[]) => { addedCount: number, updatedCount: number };
   closeDialog: () => void;
 }
 
@@ -31,14 +31,35 @@ interface ImportError {
 const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [importErrors, setImportErrors] = useState<ImportError[]>([]);
-  const [successfulImports, setSuccessfulImports] = useState(0);
+  const [addedCount, setAddedCount] = useState(0);
+  const [updatedCount, setUpdatedCount] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [hasResult, setHasResult] = useState(false);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
+    if (event.target.files && event.target.files[0]) {
       setFile(event.target.files[0]);
-      setImportErrors([]);
-      setSuccessfulImports(0);
+    } else {
+      setFile(null);
+    }
+    // Reset results when a new file is selected
+    setHasResult(false);
+    setImportErrors([]);
+    setAddedCount(0);
+    setUpdatedCount(0);
+  };
+
+  const resetState = () => {
+    setFile(null);
+    setImportErrors([]);
+    setAddedCount(0);
+    setUpdatedCount(0);
+    setIsProcessing(false);
+    setHasResult(false);
+    // Reset the file input visually
+    const fileInput = document.getElementById('book-file') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
     }
   };
 
@@ -47,7 +68,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
     const errors: ImportError[] = [];
 
     rows.forEach((row, index) => {
-      const lineNumber = index + 1;
+      const lineNumber = index + 2; // Assuming line 1 is header
       if (!row || row.every(cell => cell === null || String(cell).trim() === '')) {
         return; // Skip empty rows
       }
@@ -122,11 +143,13 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
 
         const { newBooks, errors } = processedData;
         setImportErrors(errors);
-        setSuccessfulImports(newBooks.length);
 
         if (newBooks.length > 0) {
-          onImport(newBooks);
+          const result = onImport(newBooks);
+          setAddedCount(result.addedCount);
+          setUpdatedCount(result.updatedCount);
         }
+        setHasResult(true);
       } catch (error) {
         showError('Ocorreu um erro crítico ao processar o arquivo. Verifique seu formato e conteúdo.');
         console.error(error);
@@ -155,8 +178,6 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
-
-  const hasResult = successfulImports > 0 || importErrors.length > 0;
 
   return (
     <DialogContent className="sm:max-w-[625px]">
@@ -191,15 +212,22 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
       ) : (
         <div className="py-4 space-y-4">
           <h3 className="text-lg font-semibold">Resultado da Importação</h3>
-          <div className="flex gap-4">
-            <Alert className="w-1/2 border-green-500">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Alert className="border-green-500">
               <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <AlertTitle>Sucessos</AlertTitle>
+              <AlertTitle>Adicionados</AlertTitle>
               <AlertDescription>
-                <span className="text-2xl font-bold">{successfulImports}</span> livros foram processados com sucesso.
+                <span className="text-2xl font-bold">{addedCount}</span> novos livros foram cadastrados.
               </AlertDescription>
             </Alert>
-            <Alert className="w-1/2" variant={importErrors.length > 0 ? "destructive" : "default"}>
+            <Alert className="border-blue-500">
+              <RefreshCw className="h-4 w-4 text-blue-500" />
+              <AlertTitle>Atualizados</AlertTitle>
+              <AlertDescription>
+                <span className="text-2xl font-bold">{updatedCount}</span> livros existentes foram atualizados.
+              </AlertDescription>
+            </Alert>
+            <Alert variant={importErrors.length > 0 ? "destructive" : "default"}>
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Falhas</AlertTitle>
               <AlertDescription>
@@ -208,7 +236,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
             </Alert>
           </div>
           {importErrors.length > 0 && (
-            <div>
+            <div className="pt-4">
               <h4 className="font-semibold mb-2">Detalhes dos Erros:</h4>
               <ScrollArea className="h-40 w-full rounded-md border p-4">
                 {importErrors.map((error, index) => (
@@ -229,9 +257,12 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
 
       <DialogFooter>
         {hasResult ? (
-          <DialogClose asChild>
-            <Button type="button">Fechar</Button>
-          </DialogClose>
+          <>
+            <Button type="button" variant="secondary" onClick={resetState}>Importar Outro Arquivo</Button>
+            <DialogClose asChild>
+              <Button type="button">Fechar</Button>
+            </DialogClose>
+          </>
         ) : (
           <>
             <DialogClose asChild>
