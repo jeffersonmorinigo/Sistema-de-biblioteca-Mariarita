@@ -48,12 +48,12 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
 
         lines.forEach((line, index) => {
           const fields = line.split(';').map(field => field.trim());
-          if (fields.length !== 8) {
-            errors.push(`Linha ${index + 1}: Formato inválido. Esperados 8 campos, mas foram encontrados ${fields.length}.`);
+          if (fields.length !== 9) {
+            errors.push(`Linha ${index + 1}: Formato inválido. Esperados 9 campos, mas foram encontrados ${fields.length}.`);
             return;
           }
 
-          const [code, title, author, publisher, shelf, category, quantityStr, yearStr] = fields;
+          const [code, isbn, title, author, publisher, shelf, category, quantityStr, yearStr] = fields;
           const quantity = parseInt(quantityStr, 10);
           const year = parseInt(yearStr, 10);
 
@@ -65,6 +65,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
           newBooks.push({
             id: generateId(),
             code: code.toUpperCase(),
+            isbn: isbn,
             title: title.toUpperCase(),
             author: author.toUpperCase(),
             publisher: publisher.toUpperCase(),
@@ -110,7 +111,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
               <li>Cada linha do arquivo representa um livro.</li>
               <li>Os campos de cada livro devem ser separados por <strong>ponto e vírgula (;)</strong>.</li>
               <li>A ordem dos campos deve ser exatamente: <br />
-              <code className="font-mono bg-muted p-1 rounded">Código;Título;Autor;Editora;Prateleira;Categoria;Quantidade;Ano</code>
+              <code className="font-mono bg-muted p-1 rounded">Código;ISBN;Título;Autor;Editora;Prateleira;Categoria;Quantidade;Ano</code>
               </li>
               <li>Não inclua uma linha de cabeçalho no arquivo.</li>
             </ul>

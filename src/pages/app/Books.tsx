@@ -42,12 +42,14 @@ const BooksPage = () => {
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
 
   const filteredBooks = useMemo(() => {
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
     return books.filter(book =>
-      book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      book.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (book.publisher && book.publisher.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (book.shelf && book.shelf.toLowerCase().includes(searchTerm.toLowerCase()))
+      book.title.toLowerCase().includes(lowerCaseSearchTerm) ||
+      book.author.toLowerCase().includes(lowerCaseSearchTerm) ||
+      book.code.toLowerCase().includes(lowerCaseSearchTerm) ||
+      (book.isbn && book.isbn.toLowerCase().includes(lowerCaseSearchTerm)) ||
+      (book.publisher && book.publisher.toLowerCase().includes(lowerCaseSearchTerm)) ||
+      (book.shelf && book.shelf.toLowerCase().includes(lowerCaseSearchTerm))
     );
   }, [books, searchTerm]);
 
@@ -59,6 +61,7 @@ const BooksPage = () => {
     const newBook: Book = {
       id: generateId(),
       code: data.code,
+      isbn: data.isbn,
       title: data.title,
       author: data.author,
       publisher: data.publisher,
@@ -130,7 +133,7 @@ const BooksPage = () => {
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
-            placeholder="Buscar por título, autor ou código..."
+            placeholder="Buscar por título, autor, código ou ISBN..."
             className="pl-10"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -172,6 +175,7 @@ const BooksPage = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Código</TableHead>
+              <TableHead>ISBN</TableHead>
               <TableHead>Título</TableHead>
               <TableHead>Autor</TableHead>
               <TableHead>Editora</TableHead>
@@ -187,6 +191,7 @@ const BooksPage = () => {
               filteredBooks.map(book => (
                 <TableRow key={book.id}>
                   <TableCell>{book.code}</TableCell>
+                  <TableCell>{book.isbn}</TableCell>
                   <TableCell className="font-medium">{book.title}</TableCell>
                   <TableCell>{book.author}</TableCell>
                   <TableCell>{book.publisher}</TableCell>
@@ -224,7 +229,7 @@ const BooksPage = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={9} className="text-center h-24">
+                <TableCell colSpan={10} className="text-center h-24">
                   Nenhum livro encontrado.
                 </TableCell>
               </TableRow>

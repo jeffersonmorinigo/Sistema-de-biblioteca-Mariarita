@@ -16,6 +16,7 @@ import { CategoryCombobox } from './CategoryCombobox';
 
 const bookSchema = z.object({
   code: z.string().min(1, 'Código é obrigatório'),
+  isbn: z.string(),
   title: z.string().min(1, 'Título é obrigatório'),
   author: z.string().min(1, 'Autor é obrigatório'),
   publisher: z.string().min(1, 'Editora é obrigatória'),
@@ -44,6 +45,7 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
     resolver: zodResolver(bookSchema),
     defaultValues: book || {
       code: '',
+      isbn: '',
       title: '',
       author: '',
       publisher: '',
@@ -58,6 +60,7 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
     const transformedData = {
       ...data,
       code: data.code.toUpperCase(),
+      isbn: data.isbn,
       title: data.title.toUpperCase(),
       author: data.author.toUpperCase(),
       publisher: data.publisher.toUpperCase(),
@@ -78,6 +81,11 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
             <Label htmlFor="code" className="text-right">Código</Label>
             <Input id="code" {...register('code')} className="col-span-3 uppercase" />
             {errors.code && <p className="col-span-4 text-red-500 text-sm text-right">{errors.code.message}</p>}
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="isbn" className="text-right">ISBN</Label>
+            <Input id="isbn" {...register('isbn')} className="col-span-3" />
+            {errors.isbn && <p className="col-span-4 text-red-500 text-sm text-right">{errors.isbn.message}</p>}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="title" className="text-right">Título</Label>
