@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,6 +30,43 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
     }
   };
 
+  const processRows = (rows: any[][]): { newBooks: Omit<Book, 'id'>[], errors: string[] } => {
+    const newBooks: Omit<Book, 'id'>[] = [];
+    const errors: string[] = [];
+
+    rows.forEach((row, index) => {
+      if (!row || row.every(cell => cell === null || String(cell).trim() === '')) {
+        return; // Pular linhas vazias
+      }
+
+      if (row.length < 8) {
+        errors.push(`Linha ${index + 1}: Formato inválido. Esperados 8 colunas, mas foram encontradas ${row.length}.`);
+        return;
+      }
+
+      const [code, title, author, category, publisher, tipo, isbn, quantityStr] = row.map(String);
+      const quantity = parseInt(quantityStr, 10);
+
+      if (isNaN(quantity)) {
+        errors.push(`Linha ${index + 1}: A coluna 'Quantidade' ('${quantityStr}') deve ser um número válido.`);
+        return;
+      }
+
+      newBooks.push({
+        code: code.toUpperCase(),
+        title: title.toUpperCase(),
+        author: author.toUpperCase(),
+        category: category.toUpperCase(),
+        publisher: publisher.toUpperCase(),
+        isbn: isbn,
+        quantity,
+        shelf: 'N/A', // Valor padrão
+      });
+    });
+
+    return { newBooks, errors };
+  };
+
   const handleImport = () => {
     if (!file) {
       showError('Por favor, selecione um arquivo para importar.');
@@ -36,64 +74,68 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
     }
 
     const reader = new FileReader();
+
     reader.onload = (event) => {
       try {
-        const content = event.target?.result as string;
-        const lines = content.split(/\r?\n/).filter(line => line.trim() !== '');
-        
-        const newBooks: Omit<Book, 'id'>[] = [];
-        const errors: string[] = [];
+        let processedData;
+        const fileName = file.name.toLowerCase();
 
-        lines.forEach((line, index) => {
-          const fields = line.split('\t').map(field => field.trim());
-          if (fields.length !== 8) {
-            errors.push(`Linha ${index + 1}: Formato inválido. Esperados 8 campos, mas foram encontrados ${fields.length}.`);
-            return;
-          }
+        if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
+          const content = event.target?.result as string;
+          const lines = content.split(/\r?\n/).filter(line => line.trim() !== '');
+          const delimiter = lines[0]?.includes(';') ? ';' : '\t';
+          const rows = lines.map(line => line.split(delimiter));
+          processedData = processRows(rows);
+        } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+          const data = new Uint8Array(event.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+          processedData = processRows(rows);
+        } else {
+          showError('Formato de arquivo não suportado. Use .txt, .csv, .xlsx ou .xls.');
+          return;
+        }
 
-          const [code, title, author, category, publisher, tipo, isbn, quantityStr] = fields;
-          const quantity = parseInt(quantityStr, 10);
-
-          if (isNaN(quantity)) {
-            errors.push(`Linha ${index + 1}: O campo Quantidade deve ser um número válido.`);
-            return;
-          }
-
-          newBooks.push({
-            code: code.toUpperCase(),
-            title: title.toUpperCase(),
-            author: author.toUpperCase(),
-            category: category.toUpperCase(),
-            publisher: publisher.toUpperCase(),
-            isbn: isbn,
-            quantity,
-            shelf: 'N/A', // Valor padrão
-          });
-        });
+        const { newBooks, errors } = processedData;
 
         if (errors.length > 0) {
-          showError(`Erros encontrados no arquivo:\n- ${errors.join('\n- ')}`);
+          const errorSummary = errors.slice(0, 5).join('\n- ');
+          const moreErrorsMessage = errors.length > 5 ? `\n... e mais ${errors.length - 5} erros.` : '';
+          showError(`Erros encontrados no arquivo:\n- ${errorSummary}${moreErrorsMessage}`);
+          return;
+        }
+
+        if (newBooks.length === 0) {
+          showError('Nenhum livro válido foi encontrado no arquivo.');
           return;
         }
 
         onImport(newBooks);
-        showSuccess(`${newBooks.length} livros importados com sucesso!`);
         closeDialog();
-
       } catch (error) {
-        showError('Ocorreu um erro ao ler o arquivo. Verifique o formato.');
+        showError('Ocorreu um erro ao processar o arquivo. Verifique seu formato e conteúdo.');
         console.error(error);
       }
     };
-    reader.readAsText(file);
+
+    const fileName = file.name.toLowerCase();
+    if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
+      reader.readAsText(file, 'UTF-8');
+    } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      showError('Por favor, selecione um arquivo com formato válido (.txt, .csv, .xlsx, .xls).');
+    }
   };
 
   return (
     <DialogContent className="sm:max-w-[525px]">
       <DialogHeader>
-        <DialogTitle>Importar Livros de Arquivo TXT</DialogTitle>
+        <DialogTitle>Importar Livros</DialogTitle>
         <DialogDescription>
-          Selecione um arquivo .txt para adicionar múltiplos livros de uma vez.
+          Selecione um arquivo de texto, CSV ou Excel para adicionar múltiplos livros de uma vez.
         </DialogDescription>
       </DialogHeader>
       <div className="py-4 space-y-4">
@@ -102,19 +144,19 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
           <AlertTitle>Instruções de Formato</AlertTitle>
           <AlertDescription>
             <ul className="list-disc list-inside text-sm space-y-1 mt-2">
-              <li>O arquivo deve ter a extensão <strong>.txt</strong>.</li>
-              <li>Cada linha do arquivo representa um livro.</li>
-              <li>Os campos de cada livro devem ser separados por <strong>ponto e vírgula (;)</strong> ou **tabulação (TAB)**.</li>
-              <li>A ordem dos campos deve ser exatamente: <br />
-              <code className="font-mono bg-muted p-1 rounded">Código;Título;Autor;Categoria;Editora;Tipo;ISBN;Quantidade</code>
+              <li>O arquivo pode ser <strong>.txt, .csv, .xlsx ou .xls</strong>.</li>
+              <li>Para Excel, os dados devem estar na <strong>primeira planilha</strong>.</li>
+              <li>Para .txt ou .csv, os campos devem ser separados por <strong>ponto e vírgula (;)</strong> ou <strong>tabulação (TAB)</strong>.</li>
+              <li>O arquivo <strong>não deve ter uma linha de cabeçalho</strong> (títulos de coluna).</li>
+              <li>A ordem das colunas deve ser exatamente: <br />
+                <code className="font-mono bg-muted p-1 rounded text-xs">Código;Título;Autor;Categoria;Editora;Tipo;ISBN;Quantidade</code>
               </li>
-              <li>Não inclua uma linha de cabeçalho no arquivo.</li>
             </ul>
           </AlertDescription>
         </Alert>
         <div className="grid w-full max-w-sm items-center gap-1.5">
-          <Label htmlFor="book-file">Arquivo (.txt)</Label>
-          <Input id="book-file" type="file" accept=".txt" onChange={handleFileChange} />
+          <Label htmlFor="book-file">Arquivo (.txt, .csv, .xlsx)</Label>
+          <Input id="book-file" type="file" accept=".txt,.csv,.xlsx,.xls" onChange={handleFileChange} />
         </div>
       </div>
       <DialogFooter>
