@@ -83,7 +83,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
         return;
       }
 
-      const [code, title, author, category, publisher, tipo, isbn, quantityStr] = row.map(String);
+      const [code, title, author, category, publisher, shelf, isbn, quantityStr] = row.map(String);
       const quantity = parseInt(quantityStr, 10);
 
       if (!code || code.trim() === '') {
@@ -103,7 +103,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
         publisher: publisher.toUpperCase(),
         isbn: isbn,
         quantity,
-        shelf: 'N/A', // Default value
+        shelf: shelf && shelf.trim() ? shelf.toUpperCase() : 'N/A',
       });
     });
 
@@ -209,7 +209,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
                 <li>Para Excel, os dados devem estar na <strong>primeira planilha</strong> e a <strong>primeira linha deve ser o cabeçalho</strong> (será ignorada).</li>
                 <li>Para .txt ou .csv, os campos devem ser separados por <strong>ponto e vírgula (;)</strong> ou <strong>tabulação (TAB)</strong>.</li>
                 <li>A ordem das colunas deve ser: <br />
-                  <code className="font-mono bg-muted p-1 rounded text-xs">Código;Título;Autor;Categoria;Editora;Tipo;ISBN;Quantidade</code>
+                  <code className="font-mono bg-muted p-1 rounded text-xs">Código;Título;Autor;Categoria;Editora;Prateleira;ISBN;Quantidade</code>
                 </li>
               </ul>
             </AlertDescription>
