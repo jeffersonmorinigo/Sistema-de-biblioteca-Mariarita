@@ -47,7 +47,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
         const errors: string[] = [];
 
         lines.forEach((line, index) => {
-          const fields = line.split(';').map(field => field.trim());
+          const fields = line.split('\t').map(field => field.trim());
           if (fields.length !== 8) {
             errors.push(`Linha ${index + 1}: Formato inválido. Esperados 8 campos, mas foram encontrados ${fields.length}.`);
             return;
@@ -108,7 +108,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
             <ul className="list-disc list-inside text-sm space-y-1 mt-2">
               <li>O arquivo deve ter a extensão <strong>.txt</strong>.</li>
               <li>Cada linha do arquivo representa um livro.</li>
-              <li>Os campos de cada livro devem ser separados por <strong>ponto e vírgula (;)</strong>.</li>
+              <li>Os campos de cada livro devem ser separados por <strong>ponto e vírgula (;)</strong> ou **tabulação (TAB)**.</li>
               <li>A ordem dos campos deve ser exatamente: <br />
               <code className="font-mono bg-muted p-1 rounded">Código;Título;Autor;Categoria;Editora;Tipo;ISBN;Quantidade</code>
               </li>
