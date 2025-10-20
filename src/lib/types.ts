@@ -3,6 +3,8 @@ export interface Book {
   code: string;
   title: string;
   author: string;
+  publisher: string;
+  shelf: string;
   category: string;
   quantity: number;
   year: number;

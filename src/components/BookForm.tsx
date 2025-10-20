@@ -18,6 +18,8 @@ const bookSchema = z.object({
   code: z.string().min(1, 'Código é obrigatório'),
   title: z.string().min(1, 'Título é obrigatório'),
   author: z.string().min(1, 'Autor é obrigatório'),
+  publisher: z.string().min(1, 'Editora é obrigatória'),
+  shelf: z.string().min(1, 'Prateleira é obrigatória'),
   category: z.string().min(1, 'Categoria é obrigatória'),
   quantity: z.coerce.number().min(0, 'Quantidade deve ser no mínimo 0'),
   year: z.coerce.number().min(1000, 'Ano inválido').max(new Date().getFullYear(), 'Ano não pode ser no futuro'),
@@ -44,6 +46,8 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
       code: '',
       title: '',
       author: '',
+      publisher: '',
+      shelf: '',
       category: '',
       quantity: 0,
       year: new Date().getFullYear(),
@@ -56,6 +60,8 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
       code: data.code.toUpperCase(),
       title: data.title.toUpperCase(),
       author: data.author.toUpperCase(),
+      publisher: data.publisher.toUpperCase(),
+      shelf: data.shelf.toUpperCase(),
     };
     onSubmit(transformedData);
     closeDialog();
@@ -82,6 +88,16 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
             <Label htmlFor="author" className="text-right">Autor</Label>
             <Input id="author" {...register('author')} className="col-span-3 uppercase" />
             {errors.author && <p className="col-span-4 text-red-500 text-sm text-right">{errors.author.message}</p>}
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="publisher" className="text-right">Editora</Label>
+            <Input id="publisher" {...register('publisher')} className="col-span-3 uppercase" />
+            {errors.publisher && <p className="col-span-4 text-red-500 text-sm text-right">{errors.publisher.message}</p>}
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="shelf" className="text-right">Prateleira</Label>
+            <Input id="shelf" {...register('shelf')} className="col-span-3 uppercase" />
+            {errors.shelf && <p className="col-span-4 text-red-500 text-sm text-right">{errors.shelf.message}</p>}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="category" className="text-right">Categoria</Label>

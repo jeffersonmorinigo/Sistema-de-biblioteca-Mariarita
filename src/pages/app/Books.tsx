@@ -43,7 +43,9 @@ const BooksPage = () => {
     return books.filter(book =>
       book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      book.code.toLowerCase().includes(searchTerm.toLowerCase())
+      book.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (book.publisher && book.publisher.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (book.shelf && book.shelf.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [books, searchTerm]);
 
@@ -57,6 +59,8 @@ const BooksPage = () => {
       code: data.code,
       title: data.title,
       author: data.author,
+      publisher: data.publisher,
+      shelf: data.shelf,
       category: data.category,
       quantity: data.quantity,
       year: data.year,
@@ -131,6 +135,8 @@ const BooksPage = () => {
               <TableHead>Código</TableHead>
               <TableHead>Título</TableHead>
               <TableHead>Autor</TableHead>
+              <TableHead>Editora</TableHead>
+              <TableHead>Prateleira</TableHead>
               <TableHead>Categoria</TableHead>
               <TableHead className="text-center">Qtd.</TableHead>
               <TableHead className="text-center">Ano</TableHead>
@@ -144,6 +150,8 @@ const BooksPage = () => {
                   <TableCell>{book.code}</TableCell>
                   <TableCell className="font-medium">{book.title}</TableCell>
                   <TableCell>{book.author}</TableCell>
+                  <TableCell>{book.publisher}</TableCell>
+                  <TableCell>{book.shelf}</TableCell>
                   <TableCell>{book.category}</TableCell>
                   <TableCell className="text-center">{book.quantity}</TableCell>
                   <TableCell className="text-center">{book.year}</TableCell>
@@ -177,7 +185,7 @@ const BooksPage = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="text-center h-24">
+                <TableCell colSpan={9} className="text-center h-24">
                   Nenhum livro encontrado.
                 </TableCell>
               </TableRow>
