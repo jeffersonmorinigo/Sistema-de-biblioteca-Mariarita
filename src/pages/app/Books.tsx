@@ -92,35 +92,46 @@ const BooksPage = () => {
   };
 
   const handleImportBooks = (importedBooks: Omit<Book, 'id'>[]) => {
-    const existingCodes = new Set(books.map(b => b.code.toUpperCase()));
-    const codesProcessedInFile = new Set<string>();
+    const existingBooksMap = new Map(books.map(b => [b.code.toUpperCase(), b]));
     
     const booksToAdd: Book[] = [];
-    let updatedCount = 0;
+    const booksToUpdate: Book[] = [];
+    const codesProcessedInFile = new Set<string>();
 
     for (const importedBook of importedBooks) {
       const bookCode = importedBook.code.toUpperCase();
 
       if (codesProcessedInFile.has(bookCode)) {
-        continue; // Skip duplicates within the file
+        continue;
       }
       codesProcessedInFile.add(bookCode);
 
-      if (existingCodes.has(bookCode)) {
-        updatedCount++; // Count as "to be updated", but don't perform the update for this test
-        continue;
-      }
+      const existingBook = existingBooksMap.get(bookCode);
 
-      booksToAdd.push({
-        ...importedBook,
-        id: generateId(),
-        code: bookCode,
-      });
+      if (existingBook) {
+        const updatedBook: Book = {
+          ...existingBook,
+          ...importedBook,
+          id: existingBook.id,
+          code: bookCode,
+        };
+        booksToUpdate.push(updatedBook);
+      } else {
+        booksToAdd.push({
+          ...importedBook,
+          id: generateId(),
+          code: bookCode,
+        });
+      }
     }
 
-    setBooks(prevBooks => [...prevBooks, ...booksToAdd]);
+    setBooks(prevBooks => {
+      const updateMap = new Map(booksToUpdate.map(b => [b.id, b]));
+      const updatedPrevBooks = prevBooks.map(b => updateMap.get(b.id) || b);
+      return [...updatedPrevBooks, ...booksToAdd];
+    });
 
-    return { addedCount: booksToAdd.length, updatedCount: updatedCount };
+    return { addedCount: booksToAdd.length, updatedCount: booksToUpdate.length };
   };
 
   const openEditDialog = (book: Book) => {

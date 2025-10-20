@@ -35,6 +35,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
   const [updatedCount, setUpdatedCount] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [hasResult, setHasResult] = useState(false);
+  const [totalRowsInFile, setTotalRowsInFile] = useState(0);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -42,25 +43,23 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
     } else {
       setFile(null);
     }
-    // Reset results when a new file is selected
-    setHasResult(false);
-    setImportErrors([]);
-    setAddedCount(0);
-    setUpdatedCount(0);
+    resetState(true);
   };
 
-  const resetState = () => {
-    setFile(null);
+  const resetState = (keepFile = false) => {
+    if (!keepFile) {
+      setFile(null);
+      const fileInput = document.getElementById('book-file') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+      }
+    }
     setImportErrors([]);
     setAddedCount(0);
     setUpdatedCount(0);
     setIsProcessing(false);
     setHasResult(false);
-    // Reset the file input visually
-    const fileInput = document.getElementById('book-file') as HTMLInputElement;
-    if (fileInput) {
-      fileInput.value = '';
-    }
+    setTotalRowsInFile(0);
   };
 
   const processRows = (rows: any[][]): { newBooks: Omit<Book, 'id'>[], errors: ImportError[] } => {
@@ -120,13 +119,14 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
     reader.onload = (event) => {
       try {
         let processedData;
+        let totalRows = 0;
         const fileName = file.name.toLowerCase();
 
         if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
           const content = event.target?.result as string;
           const lines = content.split(/\r?\n/);
-          const delimiter = lines[0]?.includes(';') ? ';' : '\t';
-          const rows = lines.map(line => line.split(delimiter));
+          const rows = lines.map(line => line.split(line.includes(';') ? ';' : '\t'));
+          totalRows = rows.filter(row => row.some(cell => String(cell).trim() !== '')).length;
           processedData = processRows(rows);
         } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
           const data = new Uint8Array(event.target?.result as ArrayBuffer);
@@ -134,13 +134,15 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
           const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
-          processedData = processRows(rows.slice(1)); // Assume header is present and skip it
+          totalRows = rows.slice(1).filter(row => row.some(cell => String(cell).trim() !== '')).length;
+          processedData = processRows(rows.slice(1));
         } else {
           showError('Formato de arquivo não suportado. Use .txt, .csv, .xlsx ou .xls.');
           setIsProcessing(false);
           return;
         }
-
+        
+        setTotalRowsInFile(totalRows);
         const { newBooks, errors } = processedData;
         setImportErrors(errors);
 
@@ -148,6 +150,9 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
           const result = onImport(newBooks);
           setAddedCount(result.addedCount);
           setUpdatedCount(result.updatedCount);
+        } else {
+          setAddedCount(0);
+          setUpdatedCount(0);
         }
         setHasResult(true);
       } catch (error) {
@@ -212,7 +217,15 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
       ) : (
         <div className="py-4 space-y-4">
           <h3 className="text-lg font-semibold">Resultado da Importação</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Alert>
+            <FileText className="h-4 w-4" />
+            <AlertTitle>Resumo do Arquivo</AlertTitle>
+            <AlertDescription>
+              O sistema encontrou <strong>{totalRowsInFile}</strong> linhas de dados no seu arquivo.
+              Destas, <strong>{addedCount + updatedCount}</strong> foram processadas e <strong>{importErrors.length}</strong> falharam.
+            </AlertDescription>
+          </Alert>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             <Alert className="border-green-500">
               <CheckCircle2 className="h-4 w-4 text-green-500" />
               <AlertTitle>Adicionados</AlertTitle>
@@ -225,13 +238,6 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
               <AlertTitle>Atualizados</AlertTitle>
               <AlertDescription>
                 <span className="text-2xl font-bold">{updatedCount}</span> livros existentes foram atualizados.
-              </AlertDescription>
-            </Alert>
-            <Alert variant={importErrors.length > 0 ? "destructive" : "default"}>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Falhas</AlertTitle>
-              <AlertDescription>
-                <span className="text-2xl font-bold">{importErrors.length}</span> linhas do arquivo falharam.
               </AlertDescription>
             </Alert>
           </div>
@@ -258,7 +264,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
       <DialogFooter>
         {hasResult ? (
           <>
-            <Button type="button" variant="secondary" onClick={resetState}>Importar Outro Arquivo</Button>
+            <Button type="button" variant="secondary" onClick={() => resetState()}>Importar Outro Arquivo</Button>
             <DialogClose asChild>
               <Button type="button">Fechar</Button>
             </DialogClose>
