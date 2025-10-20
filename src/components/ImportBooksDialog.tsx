@@ -36,6 +36,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
   const [isProcessing, setIsProcessing] = useState(false);
   const [hasResult, setHasResult] = useState(false);
   const [totalRowsInFile, setTotalRowsInFile] = useState(0);
+  const [uniqueCodesInFileCount, setUniqueCodesInFileCount] = useState(0);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -60,6 +61,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
     setIsProcessing(false);
     setHasResult(false);
     setTotalRowsInFile(0);
+    setUniqueCodesInFileCount(0);
   };
 
   const processRows = (rows: any[][]): { newBooks: Omit<Book, 'id'>[], errors: ImportError[] } => {
@@ -146,6 +148,9 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
         const { newBooks, errors } = processedData;
         setImportErrors(errors);
 
+        const uniqueCodes = new Set(newBooks.map(b => b.code.toUpperCase()));
+        setUniqueCodesInFileCount(uniqueCodes.size);
+
         if (newBooks.length > 0) {
           const result = onImport(newBooks);
           setAddedCount(result.addedCount);
@@ -221,7 +226,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
             <FileText className="h-4 w-4" />
             <AlertTitle>Resumo do Arquivo</AlertTitle>
             <AlertDescription>
-              O sistema encontrou <strong>{totalRowsInFile}</strong> linhas de dados no seu arquivo.
+              O sistema encontrou <strong>{totalRowsInFile}</strong> linhas de dados, contendo <strong>{uniqueCodesInFileCount}</strong> livros únicos.
               Destas, <strong>{addedCount + updatedCount}</strong> foram processadas e <strong>{importErrors.length}</strong> falharam.
             </AlertDescription>
           </Alert>
