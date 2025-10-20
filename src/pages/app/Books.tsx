@@ -26,8 +26,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { PlusCircle, Search, Edit, Trash2 } from 'lucide-react';
+import { PlusCircle, Search, Edit, Trash2, Upload } from 'lucide-react';
 import BookForm, { BookFormData } from '@/components/BookForm';
+import ImportBooksDialog from '@/components/ImportBooksDialog';
 import { showSuccess, showError } from '@/utils/toast';
 
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -36,7 +37,8 @@ const BooksPage = () => {
   const [books, setBooks] = useLocalStorage<Book[]>('books', []);
   const [categories] = useLocalStorage<string[]>('book_categories', ['GERAL']);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
 
   const filteredBooks = useMemo(() => {
@@ -87,14 +89,37 @@ const BooksPage = () => {
     showSuccess('Livro excluído com sucesso!');
   };
 
+  const handleImportBooks = (newBooks: Book[]) => {
+    const existingCodes = new Set(books.map(b => b.code.toUpperCase()));
+    const uniqueNewBooks: Book[] = [];
+    const duplicates: string[] = [];
+
+    for (const book of newBooks) {
+      if (existingCodes.has(book.code)) {
+        duplicates.push(book.code);
+      } else {
+        uniqueNewBooks.push(book);
+        existingCodes.add(book.code); // Add to set to check for duplicates within the file itself
+      }
+    }
+
+    if (duplicates.length > 0) {
+      showError(`Os seguintes códigos de livro já existem e não foram importados: ${duplicates.join(', ')}`);
+    }
+
+    if (uniqueNewBooks.length > 0) {
+      setBooks(prevBooks => [...prevBooks, ...uniqueNewBooks]);
+    }
+  };
+
   const openEditDialog = (book: Book) => {
     setSelectedBook(book);
-    setIsDialogOpen(true);
+    setIsAddDialogOpen(true);
   };
 
   const openAddDialog = () => {
     setSelectedBook(null);
-    setIsDialogOpen(true);
+    setIsAddDialogOpen(true);
   };
 
   return (
@@ -111,21 +136,35 @@ const BooksPage = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={openAddDialog} className="w-full sm:w-auto">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Adicionar Livro
-            </Button>
-          </DialogTrigger>
-          <BookForm 
-            key={selectedBook?.id || 'new'}
-            book={selectedBook} 
-            onSubmit={selectedBook ? handleEditBook : handleAddBook} 
-            closeDialog={() => setIsDialogOpen(false)}
-            categories={categories}
-          />
-        </Dialog>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="w-full sm:w-auto">
+                <Upload className="mr-2 h-4 w-4" />
+                Importar Livros
+              </Button>
+            </DialogTrigger>
+            <ImportBooksDialog 
+              onImport={handleImportBooks}
+              closeDialog={() => setIsImportDialogOpen(false)}
+            />
+          </Dialog>
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={openAddDialog} className="w-full sm:w-auto">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Adicionar Livro
+              </Button>
+            </DialogTrigger>
+            <BookForm 
+              key={selectedBook?.id || 'new'}
+              book={selectedBook} 
+              onSubmit={selectedBook ? handleEditBook : handleAddBook} 
+              closeDialog={() => setIsAddDialogOpen(false)}
+              categories={categories}
+            />
+          </Dialog>
+        </div>
       </div>
 
       <div className="border rounded-lg overflow-x-auto">
