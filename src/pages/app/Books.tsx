@@ -175,12 +175,12 @@ const BooksPage = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Código</TableHead>
-              <TableHead>ISBN</TableHead>
               <TableHead>Título</TableHead>
               <TableHead>Autor</TableHead>
-              <TableHead>Editora</TableHead>
-              <TableHead>Prateleira</TableHead>
               <TableHead>Categoria</TableHead>
+              <TableHead>Editora</TableHead>
+              <TableHead>ISBN</TableHead>
+              <TableHead>Prateleira</TableHead>
               <TableHead className="text-center">Qtd.</TableHead>
               <TableHead className="text-center">Ano</TableHead>
               <TableHead className="text-right">Ações</TableHead>
@@ -191,12 +191,12 @@ const BooksPage = () => {
               filteredBooks.map(book => (
                 <TableRow key={book.id}>
                   <TableCell>{book.code}</TableCell>
-                  <TableCell>{book.isbn}</TableCell>
                   <TableCell className="font-medium">{book.title}</TableCell>
                   <TableCell>{book.author}</TableCell>
-                  <TableCell>{book.publisher}</TableCell>
-                  <TableCell>{book.shelf}</TableCell>
                   <TableCell>{book.category}</TableCell>
+                  <TableCell>{book.publisher}</TableCell>
+                  <TableCell>{book.isbn}</TableCell>
+                  <TableCell>{book.shelf}</TableCell>
                   <TableCell className="text-center">{book.quantity}</TableCell>
                   <TableCell className="text-center">{book.year}</TableCell>
                   <TableCell className="text-right">
