@@ -23,7 +23,6 @@ const bookSchema = z.object({
   shelf: z.string().min(1, 'Prateleira é obrigatória'),
   category: z.string().min(1, 'Categoria é obrigatória'),
   quantity: z.coerce.number().min(0, 'Quantidade deve ser no mínimo 0'),
-  year: z.coerce.number().min(1000, 'Ano inválido').max(new Date().getFullYear(), 'Ano não pode ser no futuro'),
 });
 
 export type BookFormData = z.infer<typeof bookSchema>;
@@ -52,7 +51,6 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
       shelf: '',
       category: '',
       quantity: 0,
-      year: new Date().getFullYear(),
     },
   });
 
@@ -128,11 +126,6 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
             <Label htmlFor="quantity" className="text-right">Quantidade</Label>
             <Input id="quantity" type="number" {...register('quantity')} className="col-span-3" />
             {errors.quantity && <p className="col-span-4 text-red-500 text-sm text-right">{errors.quantity.message}</p>}
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="year" className="text-right">Ano</Label>
-            <Input id="year" type="number" {...register('year')} className="col-span-3" />
-            {errors.year && <p className="col-span-4 text-red-500 text-sm text-right">{errors.year.message}</p>}
           </div>
         </div>
         <DialogFooter>

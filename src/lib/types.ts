@@ -8,7 +8,6 @@ export interface Book {
   shelf: string;
   category: string;
   quantity: number;
-  year: number;
 }
 
 export interface Student {

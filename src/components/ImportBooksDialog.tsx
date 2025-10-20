@@ -15,10 +15,8 @@ import { showError, showSuccess } from '@/utils/toast';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { FileText } from 'lucide-react';
 
-const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
-
 interface ImportBooksDialogProps {
-  onImport: (newBooks: Book[]) => void;
+  onImport: (newBooks: Omit<Book, 'id'>[]) => void;
   closeDialog: () => void;
 }
 
@@ -43,7 +41,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
         const content = event.target?.result as string;
         const lines = content.split(/\r?\n/).filter(line => line.trim() !== '');
         
-        const newBooks: Book[] = [];
+        const newBooks: Omit<Book, 'id'>[] = [];
         const errors: string[] = [];
 
         lines.forEach((line, index) => {
@@ -62,7 +60,6 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
           }
 
           newBooks.push({
-            id: generateId(),
             code: code.toUpperCase(),
             title: title.toUpperCase(),
             author: author.toUpperCase(),
@@ -71,7 +68,6 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
             isbn: isbn,
             quantity,
             shelf: 'N/A', // Valor padrão
-            year: new Date().getFullYear(), // Valor padrão
           });
         });
 

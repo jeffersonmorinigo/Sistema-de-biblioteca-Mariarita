@@ -68,7 +68,6 @@ const BooksPage = () => {
       shelf: data.shelf,
       category: data.category,
       quantity: data.quantity,
-      year: data.year,
     };
     setBooks([...books, newBook]);
     showSuccess('Livro adicionado com sucesso!');
@@ -92,7 +91,7 @@ const BooksPage = () => {
     showSuccess('Livro excluído com sucesso!');
   };
 
-  const handleImportBooks = (importedBooks: Book[]) => {
+  const handleImportBooks = (importedBooks: Omit<Book, 'id'>[]) => {
     const existingBooksMap = new Map(books.map(b => [b.code.toUpperCase(), b]));
     
     const booksToAdd: Book[] = [];
@@ -120,6 +119,7 @@ const BooksPage = () => {
       } else {
         booksToAdd.push({
           ...importedBook,
+          id: generateId(),
           code: bookCode,
         });
       }
@@ -215,7 +215,6 @@ const BooksPage = () => {
               <TableHead>ISBN</TableHead>
               <TableHead>Prateleira</TableHead>
               <TableHead className="text-center">Qtd.</TableHead>
-              <TableHead className="text-center">Ano</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -231,7 +230,6 @@ const BooksPage = () => {
                   <TableCell>{book.isbn}</TableCell>
                   <TableCell>{book.shelf}</TableCell>
                   <TableCell className="text-center">{book.quantity}</TableCell>
-                  <TableCell className="text-center">{book.year}</TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" onClick={() => openEditDialog(book)}>
                       <Edit className="h-4 w-4" />
@@ -262,7 +260,7 @@ const BooksPage = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={10} className="text-center h-24">
+                <TableCell colSpan={9} className="text-center h-24">
                   Nenhum livro encontrado.
                 </TableCell>
               </TableRow>
