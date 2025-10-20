@@ -92,45 +92,58 @@ const BooksPage = () => {
   };
 
   const handleImportBooks = (importedBooks: Omit<Book, 'id'>[]) => {
-    const existingBooksMap = new Map(books.map(b => [b.code.toUpperCase(), b]));
-    
-    const booksToAdd: Book[] = [];
-    const booksToUpdate: Book[] = [];
-    const codesProcessedInFile = new Set<string>();
-
+    // 1. Aggregate books from the file by code, summing quantities.
+    const aggregatedBooksFromFile = new Map<string, Omit<Book, 'id'>>();
     for (const importedBook of importedBooks) {
       const bookCode = importedBook.code.toUpperCase();
+      const existingEntry = aggregatedBooksFromFile.get(bookCode);
 
-      if (codesProcessedInFile.has(bookCode)) {
-        continue;
+      if (existingEntry) {
+        // If book code already seen in the file, add to its quantity
+        existingEntry.quantity += importedBook.quantity;
+      } else {
+        // First time seeing this book code in the file, add it to the map
+        // Use a copy to avoid potential mutation issues
+        aggregatedBooksFromFile.set(bookCode, { ...importedBook, code: bookCode });
       }
-      codesProcessedInFile.add(bookCode);
+    }
 
-      const existingBook = existingBooksMap.get(bookCode);
+    const existingBooksMap = new Map(books.map(b => [b.code.toUpperCase(), b]));
+    const booksToAdd: Book[] = [];
+    const booksToUpdate: Book[] = [];
 
-      if (existingBook) {
+    // 2. Iterate over the aggregated books from the file
+    for (const aggregatedBook of aggregatedBooksFromFile.values()) {
+      const existingBookInSystem = existingBooksMap.get(aggregatedBook.code);
+
+      if (existingBookInSystem) {
+        // Book already exists in the system, so we'll update it.
+        // We use all data from the aggregated file entry, but keep the original ID.
         const updatedBook: Book = {
-          ...existingBook,
-          ...importedBook,
-          id: existingBook.id,
-          code: bookCode,
+          ...existingBookInSystem,
+          ...aggregatedBook,
+          id: existingBookInSystem.id, // Ensure ID is preserved
         };
         booksToUpdate.push(updatedBook);
       } else {
+        // This is a new book for the system.
         booksToAdd.push({
-          ...importedBook,
+          ...aggregatedBook,
           id: generateId(),
-          code: bookCode,
         });
       }
     }
 
+    // 3. Update the main books state
     setBooks(prevBooks => {
       const updateMap = new Map(booksToUpdate.map(b => [b.id, b]));
+      // Create a new array: start with previous books, but replace the ones that were updated
       const updatedPrevBooks = prevBooks.map(b => updateMap.get(b.id) || b);
+      // Return the updated list plus the brand new books
       return [...updatedPrevBooks, ...booksToAdd];
     });
 
+    // 4. Return the counts for the summary dialog
     return { addedCount: booksToAdd.length, updatedCount: booksToUpdate.length };
   };
 
