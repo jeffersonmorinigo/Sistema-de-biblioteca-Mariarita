@@ -92,27 +92,60 @@ const BooksPage = () => {
     showSuccess('Livro excluído com sucesso!');
   };
 
-  const handleImportBooks = (newBooks: Book[]) => {
-    const existingCodes = new Set(books.map(b => b.code.toUpperCase()));
-    const uniqueNewBooks: Book[] = [];
-    const duplicates: string[] = [];
+  const handleImportBooks = (importedBooks: Book[]) => {
+    const existingBooksMap = new Map(books.map(b => [b.code.toUpperCase(), b]));
+    
+    const booksToAdd: Book[] = [];
+    const booksToUpdate: Book[] = [];
+    const codesProcessedInFile = new Set<string>();
 
-    for (const book of newBooks) {
-      if (existingCodes.has(book.code)) {
-        duplicates.push(book.code);
+    for (const importedBook of importedBooks) {
+      const bookCode = importedBook.code.toUpperCase();
+
+      if (codesProcessedInFile.has(bookCode)) {
+        continue;
+      }
+      codesProcessedInFile.add(bookCode);
+
+      const existingBook = existingBooksMap.get(bookCode);
+
+      if (existingBook) {
+        const updatedBook: Book = {
+          ...existingBook,
+          ...importedBook,
+          id: existingBook.id,
+          code: bookCode,
+        };
+        booksToUpdate.push(updatedBook);
       } else {
-        uniqueNewBooks.push(book);
-        existingCodes.add(book.code); // Add to set to check for duplicates within the file itself
+        booksToAdd.push({
+          ...importedBook,
+          code: bookCode,
+        });
       }
     }
 
-    if (duplicates.length > 0) {
-      showError(`Os seguintes códigos de livro já existem e não foram importados: ${duplicates.join(', ')}`);
-    }
+    setBooks(prevBooks => {
+      const updateMap = new Map(booksToUpdate.map(b => [b.id, b]));
+      const updatedPrevBooks = prevBooks.map(b => updateMap.get(b.id) || b);
+      return [...updatedPrevBooks, ...booksToAdd];
+    });
 
-    if (uniqueNewBooks.length > 0) {
-      setBooks(prevBooks => [...prevBooks, ...uniqueNewBooks]);
+    const addedCount = booksToAdd.length;
+    const updatedCount = booksToUpdate.length;
+    
+    let successMessage = '';
+    if (addedCount > 0 && updatedCount > 0) {
+      successMessage = `${addedCount} livros adicionados e ${updatedCount} atualizados com sucesso!`;
+    } else if (addedCount > 0) {
+      successMessage = `${addedCount} livros adicionados com sucesso!`;
+    } else if (updatedCount > 0) {
+      successMessage = `${updatedCount} livros atualizados com sucesso!`;
+    } else {
+      successMessage = 'Nenhum livro novo para adicionar ou atualizar.';
     }
+    
+    showSuccess(successMessage);
   };
 
   const openEditDialog = (book: Book) => {
