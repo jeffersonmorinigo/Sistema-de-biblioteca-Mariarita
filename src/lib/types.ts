@@ -7,7 +7,7 @@ export interface Book {
   publisher: string;
   shelf: string;
   category: string;
-  quantity: number;
+  status: 'available' | 'on_loan';
 }
 
 export interface Student {

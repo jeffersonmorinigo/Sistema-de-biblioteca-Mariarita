@@ -44,72 +44,60 @@ const LoansPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const studentMap = useMemo(() => new Map(students.map(s => [s.id, s])), [students]);
-  const bookMap = useMemo(() => new Map(books.map(b => [b.id, b.title])), [books]);
+  const bookMap = useMemo(() => new Map(books.map(b => [b.id, b])), [books]);
 
   const filteredAndSortedLoans = useMemo(() => {
     const filtered = loans.filter(loan => {
       if (!searchTerm) return true;
       const lowercasedFilter = searchTerm.toLowerCase();
       const studentName = studentMap.get(loan.studentId)?.name.toLowerCase() || '';
-      const bookTitle = bookMap.get(loan.bookId)?.toLowerCase() || '';
+      const bookTitle = bookMap.get(loan.bookId)?.title.toLowerCase() || '';
       return studentName.includes(lowercasedFilter) || bookTitle.includes(lowercasedFilter);
     });
 
     return filtered.sort((a, b) => {
-      // 1. Prioritize active loans over returned loans
       if (a.returnDate && !b.returnDate) return 1;
       if (!a.returnDate && b.returnDate) return -1;
-
-      // If both are active (not returned)
       if (!a.returnDate && !b.returnDate) {
         const isOverdueA = isAfter(new Date(), new Date(a.expectedReturnDate));
         const isOverdueB = isAfter(new Date(), new Date(b.expectedReturnDate));
-
-        // 2. Prioritize overdue loans
         if (isOverdueA && !isOverdueB) return -1;
         if (!isOverdueA && isOverdueB) return 1;
-
-        // 3. For loans with the same status (both overdue or both on-time),
-        // sort by the expected return date (most urgent first)
         return new Date(a.expectedReturnDate).getTime() - new Date(b.expectedReturnDate).getTime();
       }
-
-      // If both are returned, sort by the actual return date (most recent first)
       if (a.returnDate && b.returnDate) {
         return new Date(b.returnDate).getTime() - new Date(a.returnDate).getTime();
       }
-
       return 0;
     });
   }, [loans, searchTerm, studentMap, bookMap]);
 
   const handleAddLoan = (data: LoanFormData) => {
-    const hasActiveLoan = loans.some(
-      loan => loan.studentId === data.studentId && loan.bookId === data.bookId && !loan.returnDate
-    );
+    const bookToLoan = books.find(b => b.code === data.bookCode && b.status === 'available');
 
-    if (hasActiveLoan) {
-      showError('Este aluno já possui um empréstimo ativo para este livro.');
+    if (!bookToLoan) {
+      showError('Não há cópias disponíveis deste livro no momento.');
       return;
     }
 
     const newLoan: Loan = {
       id: generateId(),
       studentId: data.studentId,
-      bookId: data.bookId,
+      bookId: bookToLoan.id, // Use the specific copy's ID
       loanDate: new Date().toISOString(),
       expectedReturnDate: data.expectedReturnDate.toISOString(),
     };
     setLoans([...loans, newLoan]);
-    setBooks(books.map(b => b.id === data.bookId ? { ...b, quantity: b.quantity - 1 } : b));
+    setBooks(books.map(b => b.id === bookToLoan.id ? { ...b, status: 'on_loan' } : b));
     showSuccess('Empréstimo registrado com sucesso!');
+    setIsDialogOpen(false);
   };
 
   const handleReturnLoan = (loanId: string) => {
     const loan = loans.find(l => l.id === loanId);
     if (!loan) return;
     setLoans(loans.map(l => l.id === loanId ? { ...l, returnDate: new Date().toISOString() } : l));
-    setBooks(books.map(b => b.id === loan.bookId ? { ...b, quantity: b.quantity + 1 } : b));
+    setBooks(books.map(b => b.id === loan.bookId ? { ...b, status: 'available' } : b));
     showSuccess('Devolução registrada com sucesso!');
   };
 
@@ -117,7 +105,8 @@ const LoansPage = () => {
     const loanToDelete = loans.find(l => l.id === loanId);
     if (!loanToDelete) return;
     if (!loanToDelete.returnDate) {
-      setBooks(books.map(b => b.id === loanToDelete.bookId ? { ...b, quantity: b.quantity + 1 } : b));
+      // If deleting an active loan, make the book available again
+      setBooks(books.map(b => b.id === loanToDelete.bookId ? { ...b, status: 'available' } : b));
     }
     setLoans(loans.filter(l => l.id !== loanId));
     showSuccess('Registro de empréstimo excluído!');
@@ -169,12 +158,12 @@ const LoansPage = () => {
               <tbody>
                 ${overdueLoans.map(loan => {
                   const student = studentMap.get(loan.studentId);
-                  const bookTitle = bookMap.get(loan.bookId);
+                  const book = bookMap.get(loan.bookId);
                   return `
                     <tr>
                       <td>${student?.name || 'N/A'}</td>
                       <td>${student?.registration || 'N/A'}</td>
-                      <td>${bookTitle || 'N/A'}</td>
+                      <td>${book?.title || 'N/A'}</td>
                       <td>${format(new Date(loan.expectedReturnDate), 'dd/MM/yyyy', { locale: ptBR })}</td>
                     </tr>
                   `;
@@ -243,7 +232,7 @@ const LoansPage = () => {
                 return (
                   <TableRow key={loan.id} className={cn(isOverdue && 'bg-red-100 dark:bg-red-900/20')}>
                     <TableCell className="font-medium">{studentMap.get(loan.studentId)?.name || 'Aluno não encontrado'}</TableCell>
-                    <TableCell>{bookMap.get(loan.bookId) || 'Livro não encontrado'}</TableCell>
+                    <TableCell>{bookMap.get(loan.bookId)?.title || 'Livro não encontrado'}</TableCell>
                     <TableCell>{format(new Date(loan.loanDate), 'dd/MM/yyyy', { locale: ptBR })}</TableCell>
                     <TableCell>{format(new Date(loan.expectedReturnDate), 'dd/MM/yyyy', { locale: ptBR })}</TableCell>
                     <TableCell>

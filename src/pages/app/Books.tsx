@@ -3,6 +3,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Book } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -30,6 +31,7 @@ import { PlusCircle, Search, Edit, Trash2, Upload } from 'lucide-react';
 import BookForm, { BookFormData } from '@/components/BookForm';
 import ImportBooksDialog from '@/components/ImportBooksDialog';
 import { showSuccess, showError } from '@/utils/toast';
+import { cn } from '@/lib/utils';
 
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
@@ -54,20 +56,16 @@ const BooksPage = () => {
   }, [books, searchTerm]);
 
   const handleAddBook = (data: BookFormData) => {
-    if (books.some(book => book.code.toUpperCase() === data.code.toUpperCase())) {
-      showError('Já existe um livro cadastrado com este código.');
-      return;
-    }
     const newBook: Book = {
       id: generateId(),
+      status: 'available',
       code: data.code,
-      isbn: data.isbn,
       title: data.title,
       author: data.author,
       publisher: data.publisher,
-      shelf: data.shelf,
       category: data.category,
-      quantity: data.quantity,
+      isbn: data.isbn,
+      shelf: data.shelf,
     };
     setBooks([...books, newBook]);
     showSuccess('Livro adicionado com sucesso!');
@@ -75,79 +73,49 @@ const BooksPage = () => {
 
   const handleEditBook = (data: BookFormData) => {
     if (!selectedBook) return;
-    if (books.some(b => b.code.toUpperCase() === data.code.toUpperCase() && b.id !== selectedBook.id)) {
-      showError('Já existe outro livro cadastrado com este código.');
-      return;
-    }
+    
     setBooks(
-      books.map((b): Book => (b.id === selectedBook.id ? { ...b, ...data } : b))
+      books.map((b): Book => {
+        // Update all books with the same code to maintain data consistency
+        if (b.code === selectedBook.code) {
+          return {
+            ...b, // Keep original id and status
+            code: data.code,
+            isbn: data.isbn,
+            title: data.title,
+            author: data.author,
+            publisher: data.publisher,
+            shelf: data.shelf,
+            category: data.category,
+          };
+        }
+        return b;
+      })
     );
-    showSuccess('Livro atualizado com sucesso!');
+    showSuccess('Livro(s) atualizado(s) com sucesso!');
     setSelectedBook(null);
   };
 
   const handleDeleteBook = (id: string) => {
+    const bookToDelete = books.find(b => b.id === id);
+    if (bookToDelete?.status === 'on_loan') {
+      showError('Não é possível excluir um livro que está emprestado.');
+      return;
+    }
     setBooks(books.filter(b => b.id !== id));
     showSuccess('Livro excluído com sucesso!');
   };
 
-  const handleImportBooks = (importedBooks: Omit<Book, 'id'>[]) => {
-    // Calculate total quantity from the raw import list
-    const totalQuantityFromFile = importedBooks.reduce((sum, book) => sum + (book.quantity || 0), 0);
+  const handleImportBooks = (importedBooks: Omit<Book, 'id' | 'status'>[]) => {
+    const newBooks: Book[] = importedBooks.map(b => ({
+      ...b,
+      id: generateId(),
+      status: 'available',
+    }));
 
-    // 1. Aggregate books from the file by code, summing quantities.
-    const aggregatedBooksFromFile = new Map<string, Omit<Book, 'id'>>();
-    for (const importedBook of importedBooks) {
-      const bookCode = importedBook.code.toUpperCase();
-      const existingEntry = aggregatedBooksFromFile.get(bookCode);
-
-      if (existingEntry) {
-        // If book code already seen in the file, add to its quantity
-        existingEntry.quantity += importedBook.quantity;
-      } else {
-        // First time seeing this book code in the file, add it to the map
-        // Use a copy to avoid potential mutation issues
-        aggregatedBooksFromFile.set(bookCode, { ...importedBook, code: bookCode });
-      }
-    }
-
-    const existingBooksMap = new Map(books.map(b => [b.code.toUpperCase(), b]));
-    const booksToAdd: Book[] = [];
-    const booksToUpdate: Book[] = [];
-
-    // 2. Iterate over the aggregated books from the file
-    for (const aggregatedBook of aggregatedBooksFromFile.values()) {
-      const existingBookInSystem = existingBooksMap.get(aggregatedBook.code);
-
-      if (existingBookInSystem) {
-        // Book already exists in the system, so we'll update it.
-        // We use all data from the aggregated file entry, but keep the original ID.
-        const updatedBook: Book = {
-          ...existingBookInSystem,
-          ...aggregatedBook,
-          id: existingBookInSystem.id, // Ensure ID is preserved
-        };
-        booksToUpdate.push(updatedBook);
-      } else {
-        // This is a new book for the system.
-        booksToAdd.push({
-          ...aggregatedBook,
-          id: generateId(),
-        });
-      }
-    }
-
-    // 3. Update the main books state
-    setBooks(prevBooks => {
-      const updateMap = new Map(booksToUpdate.map(b => [b.id, b]));
-      // Create a new array: start with previous books, but replace the ones that were updated
-      const updatedPrevBooks = prevBooks.map(b => updateMap.get(b.id) || b);
-      // Return the updated list plus the brand new books
-      return [...updatedPrevBooks, ...booksToAdd];
-    });
-
-    // 4. Return the counts for the summary dialog
-    return { addedCount: booksToAdd.length, updatedCount: booksToUpdate.length, totalQuantity: totalQuantityFromFile };
+    setBooks(prevBooks => [...prevBooks, ...newBooks]);
+    
+    return { processedCount: newBooks.length };
   };
 
   const openEditDialog = (book: Book) => {
@@ -213,10 +181,7 @@ const BooksPage = () => {
               <TableHead>Título</TableHead>
               <TableHead>Autor</TableHead>
               <TableHead>Categoria</TableHead>
-              <TableHead>Editora</TableHead>
-              <TableHead>ISBN</TableHead>
-              <TableHead>Prateleira</TableHead>
-              <TableHead className="text-center">Qtd.</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -228,17 +193,18 @@ const BooksPage = () => {
                   <TableCell className="font-medium">{book.title}</TableCell>
                   <TableCell>{book.author}</TableCell>
                   <TableCell>{book.category}</TableCell>
-                  <TableCell>{book.publisher}</TableCell>
-                  <TableCell>{book.isbn}</TableCell>
-                  <TableCell>{book.shelf}</TableCell>
-                  <TableCell className="text-center">{book.quantity}</TableCell>
+                  <TableCell>
+                    <Badge variant={book.status === 'available' ? 'secondary' : 'destructive'}>
+                      {book.status === 'available' ? 'Disponível' : 'Emprestado'}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" onClick={() => openEditDialog(book)}>
                       <Edit className="h-4 w-4" />
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600">
+                        <Button variant="ghost" size="icon" className={cn("text-red-500 hover:text-red-600", book.status === 'on_loan' && 'opacity-50 cursor-not-allowed')} disabled={book.status === 'on_loan'}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </AlertDialogTrigger>
@@ -246,7 +212,7 @@ const BooksPage = () => {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Essa ação não pode ser desfeita. Isso excluirá permanentemente o livro.
+                            Essa ação não pode ser desfeita. Isso excluirá permanentemente esta cópia do livro.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -262,7 +228,7 @@ const BooksPage = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={9} className="text-center h-24">
+                <TableCell colSpan={6} className="text-center h-24">
                   Nenhum livro encontrado.
                 </TableCell>
               </TableRow>

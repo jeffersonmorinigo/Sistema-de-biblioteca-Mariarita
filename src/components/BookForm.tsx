@@ -22,7 +22,6 @@ const bookSchema = z.object({
   publisher: z.string().min(1, 'Editora é obrigatória'),
   shelf: z.string().min(1, 'Prateleira é obrigatória'),
   category: z.string().min(1, 'Categoria é obrigatória'),
-  quantity: z.coerce.number().min(0, 'Quantidade deve ser no mínimo 0'),
 });
 
 export type BookFormData = z.infer<typeof bookSchema>;
@@ -50,7 +49,6 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
       publisher: '',
       shelf: '',
       category: '',
-      quantity: 0,
     },
   });
 
@@ -121,11 +119,6 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
             <Label htmlFor="shelf" className="text-right">Prateleira</Label>
             <Input id="shelf" {...register('shelf')} className="col-span-3 uppercase" />
             {errors.shelf && <p className="col-span-4 text-red-500 text-sm text-right">{errors.shelf.message}</p>}
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="quantity" className="text-right">Quantidade</Label>
-            <Input id="quantity" type="number" {...register('quantity')} className="col-span-3" />
-            {errors.quantity && <p className="col-span-4 text-red-500 text-sm text-right">{errors.quantity.message}</p>}
           </div>
         </div>
         <DialogFooter>

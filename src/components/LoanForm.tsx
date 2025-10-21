@@ -23,7 +23,7 @@ import { useState } from 'react';
 
 const loanSchema = z.object({
   studentId: z.string().min(1, 'Selecione um aluno'),
-  bookId: z.string().min(1, 'Selecione um livro'),
+  bookCode: z.string().min(1, 'Selecione um livro'),
   expectedReturnDate: z.date({ required_error: 'Data de devolução é obrigatória' }),
 });
 
@@ -45,23 +45,21 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
     resolver: zodResolver(loanSchema),
     defaultValues: {
       studentId: '',
-      bookId: '',
+      bookCode: '',
       expectedReturnDate: addDays(new Date(), 15),
     },
   });
 
   // Local state to ensure immediate UI updates
   const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [selectedBookId, setSelectedBookId] = useState('');
-
-  const availableBooks = books.filter(book => book.quantity > 0);
+  const [selectedBookCode, setSelectedBookCode] = useState('');
 
   const handleFormSubmit = (data: LoanFormData) => {
     onSubmit(data);
     reset(); // Resets react-hook-form state
     // Manually reset local state to clear the comboboxes visually
     setSelectedStudentId('');
-    setSelectedBookId('');
+    setSelectedBookCode('');
   };
 
   return (
@@ -90,22 +88,22 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
             {errors.studentId && <p className="text-red-500 text-sm">{errors.studentId.message}</p>}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="bookId">Livro (Disponíveis)</Label>
+            <Label htmlFor="bookCode">Livro (Disponíveis)</Label>
             <Controller
-              name="bookId"
+              name="bookCode"
               control={control}
               render={({ field }) => (
                 <BookCombobox
-                  books={availableBooks}
-                  value={selectedBookId}
+                  books={books}
+                  value={selectedBookCode}
                   onChange={(value) => {
                     field.onChange(value);
-                    setSelectedBookId(value);
+                    setSelectedBookCode(value);
                   }}
                 />
               )}
             />
-            {errors.bookId && <p className="text-red-500 text-sm">{errors.bookId.message}</p>}
+            {errors.bookCode && <p className="text-red-500 text-sm">{errors.bookCode.message}</p>}
           </div>
           <div className="space-y-2">
             <Label htmlFor="expectedReturnDate">Data Prevista de Devolução</Label>

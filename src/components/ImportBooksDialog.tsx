@@ -14,11 +14,11 @@ import {
 import { Book } from '@/lib/types';
 import { showError } from '@/utils/toast';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { FileText, Download, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { FileText, Download } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 
 interface ImportBooksDialogProps {
-  onImport: (newBooks: Omit<Book, 'id'>[]) => { addedCount: number, updatedCount: number, totalQuantity: number };
+  onImport: (newBooks: Omit<Book, 'id' | 'status'>[]) => { processedCount: number };
   closeDialog: () => void;
 }
 
@@ -31,13 +31,9 @@ interface ImportError {
 const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [importErrors, setImportErrors] = useState<ImportError[]>([]);
-  const [addedCount, setAddedCount] = useState(0);
-  const [updatedCount, setUpdatedCount] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [hasResult, setHasResult] = useState(false);
-  const [totalRowsInFile, setTotalRowsInFile] = useState(0);
-  const [uniqueCodesInFileCount, setUniqueCodesInFileCount] = useState(0);
-  const [totalQuantity, setTotalQuantity] = useState(0);
+  const [processedCount, setProcessedCount] = useState(0);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -57,17 +53,13 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
       }
     }
     setImportErrors([]);
-    setAddedCount(0);
-    setUpdatedCount(0);
     setIsProcessing(false);
     setHasResult(false);
-    setTotalRowsInFile(0);
-    setUniqueCodesInFileCount(0);
-    setTotalQuantity(0);
+    setProcessedCount(0);
   };
 
-  const processRows = (rows: any[][]): { newBooks: Omit<Book, 'id'>[], errors: ImportError[] } => {
-    const newBooks: Omit<Book, 'id'>[] = [];
+  const processRows = (rows: any[][]): { newBooks: Omit<Book, 'id' | 'status'>[], errors: ImportError[] } => {
+    const newBooks: Omit<Book, 'id' | 'status'>[] = [];
     const errors: ImportError[] = [];
 
     rows.forEach((row, index) => {
@@ -76,24 +68,11 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
         return; // Skip empty rows
       }
 
-      if (row.length < 8) {
-        errors.push({
-          line: lineNumber,
-          message: `Formato inválido. Esperadas 8 colunas, mas foram encontradas ${row.length}.`,
-          data: row.join('; '),
-        });
-        return;
-      }
-
-      const [code, title, author, category, publisher, _ignoredType, isbn, quantityStr] = row.map(String);
-      const quantity = parseInt(quantityStr, 10);
+      // Each row in the file is treated as a single book (quantity = 1)
+      const [code, title, author, category, publisher, _ignoredType, isbn] = row.map(String);
 
       if (!code || code.trim() === '') {
         errors.push({ line: lineNumber, message: "A coluna 'Código' não pode estar vazia.", data: row.join('; ') });
-        return;
-      }
-      if (isNaN(quantity)) {
-        errors.push({ line: lineNumber, message: `A coluna 'Quantidade' ('${quantityStr}') deve ser um número válido.`, data: row.join('; ') });
         return;
       }
 
@@ -101,10 +80,9 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
         code: code.toUpperCase(),
         title: title.toUpperCase(),
         author: author.toUpperCase(),
-        category: category.toUpperCase(),
+        category: category.toUpperCase() || 'GERAL',
         publisher: publisher.toUpperCase(),
-        isbn: isbn,
-        quantity,
+        isbn: isbn || '',
         shelf: 'N/A',
       });
     });
@@ -123,14 +101,12 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
     reader.onload = (event) => {
       try {
         let processedData;
-        let totalRows = 0;
         const fileName = file.name.toLowerCase();
 
         if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
           const content = event.target?.result as string;
           const lines = content.split(/\r?\n/);
           const rows = lines.map(line => line.split(line.includes(';') ? ';' : '\t'));
-          totalRows = rows.filter(row => row.some(cell => String(cell).trim() !== '')).length;
           processedData = processRows(rows);
         } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
           const data = new Uint8Array(event.target?.result as ArrayBuffer);
@@ -138,7 +114,6 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
           const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
-          totalRows = rows.slice(1).filter(row => row.some(cell => String(cell).trim() !== '')).length;
           processedData = processRows(rows.slice(1));
         } else {
           showError('Formato de arquivo não suportado. Use .txt, .csv, .xlsx ou .xls.');
@@ -146,22 +121,14 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
           return;
         }
         
-        setTotalRowsInFile(totalRows);
         const { newBooks, errors } = processedData;
         setImportErrors(errors);
 
-        const uniqueCodes = new Set(newBooks.map(b => b.code.toUpperCase()));
-        setUniqueCodesInFileCount(uniqueCodes.size);
-
         if (newBooks.length > 0) {
           const result = onImport(newBooks);
-          setAddedCount(result.addedCount);
-          setUpdatedCount(result.updatedCount);
-          setTotalQuantity(result.totalQuantity);
+          setProcessedCount(result.processedCount);
         } else {
-          setAddedCount(0);
-          setUpdatedCount(0);
-          setTotalQuantity(0);
+          setProcessedCount(0);
         }
         setHasResult(true);
       } catch (error) {
@@ -198,7 +165,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
       <DialogHeader>
         <DialogTitle>Importar Livros</DialogTitle>
         <DialogDescription>
-          Selecione um arquivo de texto, CSV ou Excel para adicionar ou atualizar múltiplos livros de uma vez.
+          Selecione um arquivo para cadastrar todos os livros de uma vez. Cada linha será um novo livro.
         </DialogDescription>
       </DialogHeader>
       
@@ -210,10 +177,9 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
             <AlertDescription>
               <ul className="list-disc list-inside text-sm space-y-1 mt-2">
                 <li>O arquivo pode ser <strong>.txt, .csv, .xlsx ou .xls</strong>.</li>
-                <li>Para Excel, os dados devem estar na <strong>primeira planilha</strong> e a <strong>primeira linha deve ser o cabeçalho</strong> (será ignorada).</li>
-                <li>Para .txt ou .csv, os campos devem ser separados por <strong>ponto e vírgula (;)</strong> ou <strong>tabulação (TAB)</strong>.</li>
+                <li>A <strong>coluna de Quantidade será ignorada</strong>, pois cada linha será um livro.</li>
                 <li>A ordem das colunas deve ser: <br />
-                  <code className="font-mono bg-muted p-1 rounded text-xs">Código;Título;Autor;Categoria;Editora;Tipo;ISBN;Quantidade</code>
+                  <code className="font-mono bg-muted p-1 rounded text-xs">Código;Título;Autor;Categoria;Editora;Tipo;ISBN;...</code>
                 </li>
               </ul>
             </AlertDescription>
@@ -226,30 +192,15 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
       ) : (
         <div className="py-4 space-y-4">
           <h3 className="text-lg font-semibold">Resultado da Importação</h3>
-          <Alert>
+          <Alert variant={importErrors.length > 0 ? "destructive" : "default"}>
             <FileText className="h-4 w-4" />
-            <AlertTitle>Resumo da Importação</AlertTitle>
+            <AlertTitle>Importação Concluída</AlertTitle>
             <AlertDescription>
-              O sistema processou <strong>{totalRowsInFile}</strong> linhas do arquivo, totalizando <strong>{totalQuantity}</strong> exemplares de livros.
-              Estes foram agrupados em <strong>{uniqueCodesInFileCount}</strong> títulos únicos.
+              <strong>{processedCount}</strong> livros foram cadastrados com sucesso.
+              {importErrors.length > 0 && ` ${importErrors.length} linhas continham erros e foram ignoradas.`}
             </AlertDescription>
           </Alert>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <Alert className="border-green-500">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <AlertTitle>Adicionados</AlertTitle>
-              <AlertDescription>
-                <span className="text-2xl font-bold">{addedCount}</span> novos livros foram cadastrados.
-              </AlertDescription>
-            </Alert>
-            <Alert className="border-blue-500">
-              <RefreshCw className="h-4 w-4 text-blue-500" />
-              <AlertTitle>Atualizados</AlertTitle>
-              <AlertDescription>
-                <span className="text-2xl font-bold">{updatedCount}</span> livros existentes foram atualizados.
-              </AlertDescription>
-            </Alert>
-          </div>
+          
           {importErrors.length > 0 && (
             <div className="pt-4">
               <h4 className="font-semibold mb-2">Detalhes dos Erros:</h4>
@@ -263,7 +214,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
               </ScrollArea>
               <Button onClick={downloadErrorReport} variant="outline" size="sm" className="mt-2">
                 <Download className="mr-2 h-4 w-4" />
-                Baixar Relatório de Erros Completo
+                Baixar Relatório de Erros
               </Button>
             </div>
           )}
