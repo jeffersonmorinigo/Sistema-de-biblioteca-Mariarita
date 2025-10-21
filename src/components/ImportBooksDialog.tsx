@@ -18,7 +18,7 @@ import { FileText, Download, AlertCircle, CheckCircle2, RefreshCw } from 'lucide
 import { ScrollArea } from './ui/scroll-area';
 
 interface ImportBooksDialogProps {
-  onImport: (newBooks: Omit<Book, 'id'>[]) => { addedCount: number, updatedCount: number };
+  onImport: (newBooks: Omit<Book, 'id'>[]) => { addedCount: number, updatedCount: number, totalQuantity: number };
   closeDialog: () => void;
 }
 
@@ -37,6 +37,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
   const [hasResult, setHasResult] = useState(false);
   const [totalRowsInFile, setTotalRowsInFile] = useState(0);
   const [uniqueCodesInFileCount, setUniqueCodesInFileCount] = useState(0);
+  const [totalQuantity, setTotalQuantity] = useState(0);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -62,6 +63,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
     setHasResult(false);
     setTotalRowsInFile(0);
     setUniqueCodesInFileCount(0);
+    setTotalQuantity(0);
   };
 
   const processRows = (rows: any[][]): { newBooks: Omit<Book, 'id'>[], errors: ImportError[] } => {
@@ -155,9 +157,11 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
           const result = onImport(newBooks);
           setAddedCount(result.addedCount);
           setUpdatedCount(result.updatedCount);
+          setTotalQuantity(result.totalQuantity);
         } else {
           setAddedCount(0);
           setUpdatedCount(0);
+          setTotalQuantity(0);
         }
         setHasResult(true);
       } catch (error) {
@@ -224,10 +228,10 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
           <h3 className="text-lg font-semibold">Resultado da Importação</h3>
           <Alert>
             <FileText className="h-4 w-4" />
-            <AlertTitle>Resumo do Arquivo</AlertTitle>
+            <AlertTitle>Resumo da Importação</AlertTitle>
             <AlertDescription>
-              O sistema encontrou <strong>{totalRowsInFile}</strong> linhas de dados, contendo <strong>{uniqueCodesInFileCount}</strong> livros únicos.
-              Destas, <strong>{addedCount + updatedCount}</strong> foram processadas e <strong>{importErrors.length}</strong> falharam.
+              O sistema processou <strong>{totalRowsInFile}</strong> linhas do arquivo, totalizando <strong>{totalQuantity}</strong> exemplares de livros.
+              Estes foram agrupados em <strong>{uniqueCodesInFileCount}</strong> títulos únicos.
             </AlertDescription>
           </Alert>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">

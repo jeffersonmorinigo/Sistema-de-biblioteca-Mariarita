@@ -92,6 +92,9 @@ const BooksPage = () => {
   };
 
   const handleImportBooks = (importedBooks: Omit<Book, 'id'>[]) => {
+    // Calculate total quantity from the raw import list
+    const totalQuantityFromFile = importedBooks.reduce((sum, book) => sum + (book.quantity || 0), 0);
+
     // 1. Aggregate books from the file by code, summing quantities.
     const aggregatedBooksFromFile = new Map<string, Omit<Book, 'id'>>();
     for (const importedBook of importedBooks) {
@@ -144,7 +147,7 @@ const BooksPage = () => {
     });
 
     // 4. Return the counts for the summary dialog
-    return { addedCount: booksToAdd.length, updatedCount: booksToUpdate.length };
+    return { addedCount: booksToAdd.length, updatedCount: booksToUpdate.length, totalQuantity: totalQuantityFromFile };
   };
 
   const openEditDialog = (book: Book) => {
