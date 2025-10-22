@@ -39,19 +39,19 @@ const generateId = () => Date.now().toString(36) + Math.random().toString(36).su
 const LoansPage = () => {
   const [loans, setLoans] = useLocalStorage<Loan[]>('loans', []);
   const [books, setBooks] = useLocalStorage<Book[]>('books', []);
-  const [students, setStudents] = useLocalStorage<Student[]>('students', []);
+  const [students] = useLocalStorage<Student[]>('students', []);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   const studentMap = useMemo(() => new Map(students.map(s => [s.id, s])), [students]);
-  const bookMap = useMemo(() => new Map(books.map(b => [b.id, b])), [books]);
+  const bookMap = useMemo(() => new Map(books.map(b => [b.code, b])), [books]);
 
   const filteredAndSortedLoans = useMemo(() => {
     const filtered = loans.filter(loan => {
       if (!searchTerm) return true;
       const lowercasedFilter = searchTerm.toLowerCase();
       const studentName = studentMap.get(loan.studentId)?.name.toLowerCase() || '';
-      const bookTitle = bookMap.get(loan.bookId)?.title.toLowerCase() || '';
+      const bookTitle = bookMap.get(loan.bookCode)?.title.toLowerCase() || '';
       return studentName.includes(lowercasedFilter) || bookTitle.includes(lowercasedFilter);
     });
 
@@ -73,9 +73,14 @@ const LoansPage = () => {
   }, [loans, searchTerm, studentMap, bookMap]);
 
   const handleAddLoan = (data: LoanFormData) => {
-    const bookToLoan = books.find(b => b.code === data.bookCode && b.status === 'available');
-
+    const bookToLoan = books.find(b => b.code === data.bookCode);
     if (!bookToLoan) {
+      showError('Livro não encontrado.');
+      return;
+    }
+
+    const activeLoansCount = loans.filter(l => l.bookCode === data.bookCode && !l.returnDate).length;
+    if (activeLoansCount >= bookToLoan.quantity) {
       showError('Não há cópias disponíveis deste livro no momento.');
       return;
     }
@@ -83,31 +88,21 @@ const LoansPage = () => {
     const newLoan: Loan = {
       id: generateId(),
       studentId: data.studentId,
-      bookId: bookToLoan.id, // Use the specific copy's ID
+      bookCode: data.bookCode,
       loanDate: new Date().toISOString(),
       expectedReturnDate: data.expectedReturnDate.toISOString(),
     };
     setLoans([...loans, newLoan]);
-    setBooks(books.map(b => b.id === bookToLoan.id ? { ...b, status: 'on_loan' } : b));
     showSuccess('Empréstimo registrado com sucesso!');
     setIsDialogOpen(false);
   };
 
   const handleReturnLoan = (loanId: string) => {
-    const loan = loans.find(l => l.id === loanId);
-    if (!loan) return;
     setLoans(loans.map(l => l.id === loanId ? { ...l, returnDate: new Date().toISOString() } : l));
-    setBooks(books.map(b => b.id === loan.bookId ? { ...b, status: 'available' } : b));
     showSuccess('Devolução registrada com sucesso!');
   };
 
   const handleDeleteLoan = (loanId: string) => {
-    const loanToDelete = loans.find(l => l.id === loanId);
-    if (!loanToDelete) return;
-    if (!loanToDelete.returnDate) {
-      // If deleting an active loan, make the book available again
-      setBooks(books.map(b => b.id === loanToDelete.bookId ? { ...b, status: 'available' } : b));
-    }
     setLoans(loans.filter(l => l.id !== loanId));
     showSuccess('Registro de empréstimo excluído!');
   };
@@ -158,7 +153,7 @@ const LoansPage = () => {
               <tbody>
                 ${overdueLoans.map(loan => {
                   const student = studentMap.get(loan.studentId);
-                  const book = bookMap.get(loan.bookId);
+                  const book = bookMap.get(loan.bookCode);
                   return `
                     <tr>
                       <td>${student?.name || 'N/A'}</td>
@@ -232,7 +227,7 @@ const LoansPage = () => {
                 return (
                   <TableRow key={loan.id} className={cn(isOverdue && 'bg-red-100 dark:bg-red-900/20')}>
                     <TableCell className="font-medium">{studentMap.get(loan.studentId)?.name || 'Aluno não encontrado'}</TableCell>
-                    <TableCell>{bookMap.get(loan.bookId)?.title || 'Livro não encontrado'}</TableCell>
+                    <TableCell>{bookMap.get(loan.bookCode)?.title || 'Livro não encontrado'}</TableCell>
                     <TableCell>{format(new Date(loan.loanDate), 'dd/MM/yyyy', { locale: ptBR })}</TableCell>
                     <TableCell>{format(new Date(loan.expectedReturnDate), 'dd/MM/yyyy', { locale: ptBR })}</TableCell>
                     <TableCell>

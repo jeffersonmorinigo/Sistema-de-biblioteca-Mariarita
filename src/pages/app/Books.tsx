@@ -1,9 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { Book } from '@/lib/types';
+import { Book, Loan } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -31,17 +30,27 @@ import { PlusCircle, Search, Edit, Trash2, Upload } from 'lucide-react';
 import BookForm, { BookFormData } from '@/components/BookForm';
 import ImportBooksDialog from '@/components/ImportBooksDialog';
 import { showSuccess, showError } from '@/utils/toast';
-import { cn } from '@/lib/utils';
 
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
 const BooksPage = () => {
   const [books, setBooks] = useLocalStorage<Book[]>('books', []);
+  const [loans] = useLocalStorage<Loan[]>('loans', []);
   const [categories] = useLocalStorage<string[]>('book_categories', ['GERAL']);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+
+  const activeLoansByCode = useMemo(() => {
+    const counts = new Map<string, number>();
+    loans.forEach(loan => {
+      if (!loan.returnDate) {
+        counts.set(loan.bookCode, (counts.get(loan.bookCode) || 0) + 1);
+      }
+    });
+    return counts;
+  }, [loans]);
 
   const filteredBooks = useMemo(() => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
@@ -49,23 +58,26 @@ const BooksPage = () => {
       book.title.toLowerCase().includes(lowerCaseSearchTerm) ||
       book.author.toLowerCase().includes(lowerCaseSearchTerm) ||
       book.code.toLowerCase().includes(lowerCaseSearchTerm) ||
-      (book.isbn && book.isbn.toLowerCase().includes(lowerCaseSearchTerm)) ||
-      (book.publisher && book.publisher.toLowerCase().includes(lowerCaseSearchTerm)) ||
-      (book.shelf && book.shelf.toLowerCase().includes(lowerCaseSearchTerm))
+      book.isbn.toLowerCase().includes(lowerCaseSearchTerm)
     );
   }, [books, searchTerm]);
 
   const handleAddBook = (data: BookFormData) => {
+    if (books.some(b => b.code === data.code.toUpperCase())) {
+      showError('Um livro com este código já existe.');
+      return;
+    }
     const newBook: Book = {
       id: generateId(),
-      status: 'available',
       code: data.code,
+      isbn: data.isbn,
       title: data.title,
       author: data.author,
       publisher: data.publisher,
+      shelf: data.shelf || 'N/A',
       category: data.category,
-      isbn: data.isbn,
-      shelf: data.shelf,
+      bookType: data.bookType,
+      quantity: data.quantity,
     };
     setBooks([...books, newBook]);
     showSuccess('Livro adicionado com sucesso!');
@@ -73,49 +85,41 @@ const BooksPage = () => {
 
   const handleEditBook = (data: BookFormData) => {
     if (!selectedBook) return;
-    
     setBooks(
-      books.map((b): Book => {
-        // Update all books with the same code to maintain data consistency
-        if (b.code === selectedBook.code) {
-          return {
-            ...b, // Keep original id and status
-            code: data.code,
-            isbn: data.isbn,
-            title: data.title,
-            author: data.author,
-            publisher: data.publisher,
-            shelf: data.shelf,
-            category: data.category,
-          };
-        }
-        return b;
-      })
+      books.map((b) => (b.id === selectedBook.id ? { ...b, ...data } : b))
     );
-    showSuccess('Livro(s) atualizado(s) com sucesso!');
+    showSuccess('Livro atualizado com sucesso!');
     setSelectedBook(null);
   };
 
-  const handleDeleteBook = (id: string) => {
-    const bookToDelete = books.find(b => b.id === id);
-    if (bookToDelete?.status === 'on_loan') {
-      showError('Não é possível excluir um livro que está emprestado.');
+  const handleDeleteBook = (bookId: string) => {
+    const bookToDelete = books.find(b => b.id === bookId);
+    if (!bookToDelete) return;
+    if ((activeLoansByCode.get(bookToDelete.code) || 0) > 0) {
+      showError('Não é possível excluir um livro com cópias emprestadas.');
       return;
     }
-    setBooks(books.filter(b => b.id !== id));
+    setBooks(books.filter(b => b.id !== bookId));
     showSuccess('Livro excluído com sucesso!');
   };
 
-  const handleImportBooks = (importedBooks: Omit<Book, 'id' | 'status'>[]) => {
-    const newBooks: Book[] = importedBooks.map(b => ({
-      ...b,
-      id: generateId(),
-      status: 'available',
-    }));
+  const handleImportBooks = (importedBooks: Book[]) => {
+    const updatedBooks = [...books];
+    let totalCopiesAdded = 0;
 
-    setBooks(prevBooks => [...prevBooks, ...newBooks]);
-    
-    return { processedCount: newBooks.length };
+    importedBooks.forEach(importedBook => {
+      const existingBookIndex = updatedBooks.findIndex(b => b.code === importedBook.code);
+      if (existingBookIndex !== -1) {
+        updatedBooks[existingBookIndex].quantity += importedBook.quantity;
+      } else {
+        updatedBooks.push(importedBook);
+      }
+      totalCopiesAdded += importedBook.quantity;
+    });
+
+    setBooks(updatedBooks);
+    showSuccess(`${totalCopiesAdded} cópias de ${importedBooks.length} livros foram importadas/atualizadas!`);
+    return { processedCount: totalCopiesAdded, uniqueBookCount: importedBooks.length };
   };
 
   const openEditDialog = (book: Book) => {
@@ -136,7 +140,7 @@ const BooksPage = () => {
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
-            placeholder="Buscar por título, autor, código ou ISBN..."
+            placeholder="Buscar por título, autor, código..."
             className="pl-10"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -147,7 +151,7 @@ const BooksPage = () => {
             <DialogTrigger asChild>
               <Button variant="outline" className="w-full sm:w-auto">
                 <Upload className="mr-2 h-4 w-4" />
-                Importar Livros
+                Importar
               </Button>
             </DialogTrigger>
             <ImportBooksDialog 
@@ -180,55 +184,61 @@ const BooksPage = () => {
               <TableHead>Código</TableHead>
               <TableHead>Título</TableHead>
               <TableHead>Autor</TableHead>
-              <TableHead>Categoria</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>Editora</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>ISBN</TableHead>
+              <TableHead>Disponível</TableHead>
+              <TableHead>Total</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredBooks.length > 0 ? (
-              filteredBooks.map(book => (
-                <TableRow key={book.id}>
-                  <TableCell>{book.code}</TableCell>
-                  <TableCell className="font-medium">{book.title}</TableCell>
-                  <TableCell>{book.author}</TableCell>
-                  <TableCell>{book.category}</TableCell>
-                  <TableCell>
-                    <Badge variant={book.status === 'available' ? 'secondary' : 'destructive'}>
-                      {book.status === 'available' ? 'Disponível' : 'Emprestado'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(book)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className={cn("text-red-500 hover:text-red-600", book.status === 'on_loan' && 'opacity-50 cursor-not-allowed')} disabled={book.status === 'on_loan'}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Essa ação não pode ser desfeita. Isso excluirá permanentemente esta cópia do livro.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDeleteBook(book.id)}>
-                            Excluir
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </TableCell>
-                </TableRow>
-              ))
+              filteredBooks.map(book => {
+                const activeLoans = activeLoansByCode.get(book.code) || 0;
+                const available = book.quantity - activeLoans;
+                return (
+                  <TableRow key={book.id}>
+                    <TableCell>{book.code}</TableCell>
+                    <TableCell className="font-medium">{book.title}</TableCell>
+                    <TableCell>{book.author}</TableCell>
+                    <TableCell>{book.publisher}</TableCell>
+                    <TableCell>{book.bookType}</TableCell>
+                    <TableCell>{book.isbn}</TableCell>
+                    <TableCell className="font-semibold">{available}</TableCell>
+                    <TableCell>{book.quantity}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(book)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Isso excluirá o registro deste livro e todas as suas cópias. A ação não pode ser desfeita.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDeleteBook(book.id)}>
+                              Excluir
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center h-24">
+                <TableCell colSpan={9} className="text-center h-24">
                   Nenhum livro encontrado.
                 </TableCell>
               </TableRow>

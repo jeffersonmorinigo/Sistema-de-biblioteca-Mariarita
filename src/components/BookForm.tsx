@@ -20,8 +20,10 @@ const bookSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   author: z.string().min(1, 'Autor é obrigatório'),
   publisher: z.string().min(1, 'Editora é obrigatória'),
-  shelf: z.string().min(1, 'Prateleira é obrigatória'),
+  shelf: z.string(),
   category: z.string().min(1, 'Categoria é obrigatória'),
+  bookType: z.string().min(1, 'Tipo é obrigatório'),
+  quantity: z.coerce.number().min(1, 'A quantidade deve ser pelo menos 1'),
 });
 
 export type BookFormData = z.infer<typeof bookSchema>;
@@ -49,6 +51,8 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
       publisher: '',
       shelf: '',
       category: '',
+      bookType: '',
+      quantity: 1,
     },
   });
 
@@ -56,11 +60,11 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
     const transformedData = {
       ...data,
       code: data.code.toUpperCase(),
-      isbn: data.isbn,
       title: data.title.toUpperCase(),
       author: data.author.toUpperCase(),
       publisher: data.publisher.toUpperCase(),
       shelf: data.shelf.toUpperCase(),
+      bookType: data.bookType.toUpperCase(),
     };
     onSubmit(transformedData);
     closeDialog();
@@ -72,10 +76,10 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
         <DialogTitle>{book ? 'Editar Livro' : 'Adicionar Livro'}</DialogTitle>
       </DialogHeader>
       <form onSubmit={handleSubmit(handleFormSubmit)}>
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-3 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="code" className="text-right">Código</Label>
-            <Input id="code" {...register('code')} className="col-span-3 uppercase" />
+            <Input id="code" {...register('code')} className="col-span-3 uppercase" disabled={!!book} />
             {errors.code && <p className="col-span-4 text-red-500 text-sm text-right">{errors.code.message}</p>}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
@@ -111,14 +115,19 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
             {errors.publisher && <p className="col-span-4 text-red-500 text-sm text-right">{errors.publisher.message}</p>}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="bookType" className="text-right">Tipo</Label>
+            <Input id="bookType" {...register('bookType')} className="col-span-3 uppercase" />
+            {errors.bookType && <p className="col-span-4 text-red-500 text-sm text-right">{errors.bookType.message}</p>}
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="isbn" className="text-right">ISBN</Label>
             <Input id="isbn" {...register('isbn')} className="col-span-3" />
             {errors.isbn && <p className="col-span-4 text-red-500 text-sm text-right">{errors.isbn.message}</p>}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="shelf" className="text-right">Prateleira</Label>
-            <Input id="shelf" {...register('shelf')} className="col-span-3 uppercase" />
-            {errors.shelf && <p className="col-span-4 text-red-500 text-sm text-right">{errors.shelf.message}</p>}
+            <Label htmlFor="quantity" className="text-right">Quantidade</Label>
+            <Input id="quantity" type="number" {...register('quantity')} className="col-span-3" />
+            {errors.quantity && <p className="col-span-4 text-red-500 text-sm text-right">{errors.quantity.message}</p>}
           </div>
         </div>
         <DialogFooter>

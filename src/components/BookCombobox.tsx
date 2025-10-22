@@ -18,38 +18,45 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Book } from "@/lib/types"
+import { Book, Loan } from "@/lib/types"
+import { useLocalStorage } from "@/hooks/useLocalStorage"
 
 interface BookComboboxProps {
   books: Book[];
-  value: string; // Now expects a book code
-  onChange: (value: string) => void; // Returns a book code
+  value: string;
+  onChange: (value: string) => void;
 }
 
 export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
   const [open, setOpen] = React.useState(false)
+  const [loans] = useLocalStorage<Loan[]>('loans', []);
 
-  const bookGroups = useMemo(() => {
-    const groups = new Map<string, { title: string; author: string; available: number }>();
-    books.forEach(book => {
-      if (!groups.has(book.code)) {
-        groups.set(book.code, { title: book.title, author: book.author, available: 0 });
-      }
-      if (book.status === 'available') {
-        groups.get(book.code)!.available++;
+  const activeLoansByCode = useMemo(() => {
+    const counts = new Map<string, number>();
+    loans.forEach(loan => {
+      if (!loan.returnDate) {
+        counts.set(loan.bookCode, (counts.get(loan.bookCode) || 0) + 1);
       }
     });
-    return Array.from(groups.entries())
-      .map(([code, data]) => ({ code, ...data }))
-      .filter(group => group.available > 0) // Only show books with available copies
+    return counts;
+  }, [loans]);
+
+  const availableBooks = useMemo(() => {
+    return books
+      .map(book => {
+        const loanedCount = activeLoansByCode.get(book.code) || 0;
+        const availableCount = book.quantity - loanedCount;
+        return { ...book, availableCount };
+      })
+      .filter(book => book.availableCount > 0)
       .sort((a, b) => a.title.localeCompare(b.title));
-  }, [books]);
+  }, [books, activeLoansByCode]);
 
   const selectedBookTitle = useMemo(() => {
     if (!value) return "Selecione um livro disponível...";
-    const group = bookGroups.find(bg => bg.code === value);
-    return group ? group.title : "Selecione um livro disponível...";
-  }, [value, bookGroups]);
+    const book = books.find(b => b.code === value);
+    return book ? book.title : "Selecione um livro disponível...";
+  }, [value, books]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -70,27 +77,27 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
           <CommandList>
             <CommandEmpty>Nenhum livro disponível encontrado.</CommandEmpty>
             <CommandGroup>
-              {bookGroups.map((group) => (
+              {availableBooks.map((book) => (
                 <CommandItem
-                  key={group.code}
-                  value={`${group.title} ${group.author}`}
+                  key={book.id}
+                  value={`${book.title} ${book.author}`}
                   onSelect={() => {
-                    onChange(group.code)
+                    onChange(book.code)
                     setOpen(false)
                   }}
                 >
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      value === group.code ? "opacity-100" : "opacity-0"
+                      value === book.code ? "opacity-100" : "opacity-0"
                     )}
                   />
                   <div className="flex-1">
-                    <p>{group.title}</p>
-                    <p className="text-xs text-muted-foreground">Autor: {group.author}</p>
+                    <p>{book.title}</p>
+                    <p className="text-xs text-muted-foreground">Autor: {book.author}</p>
                   </div>
                   <span className="text-xs bg-secondary text-secondary-foreground rounded-full px-2 py-0.5">
-                    {group.available} {group.available === 1 ? 'disp.' : 'disps.'}
+                    {book.availableCount} {book.availableCount === 1 ? 'disp.' : 'disps.'}
                   </span>
                 </CommandItem>
               ))}

@@ -7,7 +7,8 @@ export interface Book {
   publisher: string;
   shelf: string;
   category: string;
-  status: 'available' | 'on_loan';
+  bookType: string;
+  quantity: number;
 }
 
 export interface Student {
@@ -20,7 +21,7 @@ export interface Student {
 export interface Loan {
   id: string;
   studentId: string;
-  bookId: string;
+  bookCode: string;
   loanDate: string;
   expectedReturnDate: string;
   returnDate?: string;
