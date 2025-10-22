@@ -181,7 +181,6 @@ const BooksPage = () => {
               <TableHead>Tipo</TableHead>
               <TableHead>ISBN</TableHead>
               <TableHead>Disponível</TableHead>
-              <TableHead>Total</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -199,7 +198,6 @@ const BooksPage = () => {
                     <TableCell>{book.bookType}</TableCell>
                     <TableCell>{book.isbn}</TableCell>
                     <TableCell className="font-semibold">{available}</TableCell>
-                    <TableCell>{book.quantity}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" onClick={() => openEditDialog(book)}>
                         <Edit className="h-4 w-4" />
@@ -231,7 +229,7 @@ const BooksPage = () => {
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={9} className="text-center h-24">
+                <TableCell colSpan={8} className="text-center h-24">
                   Nenhum livro encontrado.
                 </TableCell>
               </TableRow>
