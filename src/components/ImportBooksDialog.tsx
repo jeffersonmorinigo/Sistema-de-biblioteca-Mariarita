@@ -23,6 +23,51 @@ interface ImportBooksDialogProps {
   closeDialog: () => void;
 }
 
+const processRows = (rows: any[][]): Book[] => {
+  const newBooks: Book[] = [];
+  const seenCodes = new Set<string>();
+
+  rows.forEach((row, index) => {
+    if (!row || row.every(cell => cell === null || String(cell).trim() === '')) {
+      return; // Skip empty rows
+    }
+
+    const [code, title, author, category, publisher, bookType, isbn, quantityStr] = row.map(cell => String(cell || '').trim());
+
+    if (!code) {
+      console.warn(`Skipping row ${index + 2}: Code is missing.`);
+      return;
+    }
+    
+    const upperCode = code.toUpperCase();
+
+    if (seenCodes.has(upperCode)) {
+        showError(`Código duplicado no arquivo: ${upperCode}. Apenas a 1ª ocorrência foi importada.`);
+        console.warn(`Skipping duplicate code in row ${index + 2}: ${upperCode}`);
+        return;
+    }
+    seenCodes.add(upperCode);
+
+    const quantity = parseInt(quantityStr, 10);
+
+    newBooks.push({
+      id: generateId(),
+      code: upperCode,
+      title: title.toUpperCase(),
+      author: author.toUpperCase(),
+      category: category.toUpperCase() || 'GERAL',
+      publisher: publisher.toUpperCase(),
+      bookType: bookType.toUpperCase(),
+      isbn: isbn || '',
+      shelf: 'N/A',
+      quantity: !isNaN(quantity) && quantity > 0 ? quantity : 1,
+    });
+  });
+
+  return newBooks;
+};
+
+
 const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -51,44 +96,6 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
     setUniqueBookCount(0);
   };
 
-  const processAndGroupRows = (rows: any[][]): Book[] => {
-    const bookGroups = new Map<string, Book>();
-
-    rows.forEach((row) => {
-      if (!row || row.every(cell => cell === null || String(cell).trim() === '')) {
-        return; // Skip empty rows
-      }
-
-      const [code, title, author, category, publisher, bookType, isbn] = row.map(String);
-
-      if (!code || code.trim() === '') {
-        return; // Skip rows without a code
-      }
-      
-      const upperCode = code.toUpperCase();
-
-      if (bookGroups.has(upperCode)) {
-        const existingBook = bookGroups.get(upperCode)!;
-        existingBook.quantity += 1;
-      } else {
-        bookGroups.set(upperCode, {
-          id: generateId(),
-          code: upperCode,
-          title: title.toUpperCase(),
-          author: author.toUpperCase(),
-          category: category.toUpperCase() || 'GERAL',
-          publisher: publisher.toUpperCase(),
-          bookType: bookType.toUpperCase(),
-          isbn: isbn || '',
-          shelf: 'N/A',
-          quantity: 1,
-        });
-      }
-    });
-
-    return Array.from(bookGroups.values());
-  };
-
   const handleImport = () => {
     if (!file) {
       showError('Por favor, selecione um arquivo para importar.');
@@ -99,28 +106,28 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        let groupedBooks: Book[] = [];
+        let booksToImport: Book[] = [];
         const fileName = file.name.toLowerCase();
 
         if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
           const content = event.target?.result as string;
           const rows = content.split(/\r?\n/).map(line => line.split(line.includes(';') ? ';' : '\t'));
-          groupedBooks = processAndGroupRows(rows);
+          booksToImport = processRows(rows.slice(1)); // slice(1) to skip header
         } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
           const data = new Uint8Array(event.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
           const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
-          groupedBooks = processAndGroupRows(rows.slice(1)); // slice(1) to skip header
+          booksToImport = processRows(rows.slice(1)); // slice(1) to skip header
         } else {
           showError('Formato de arquivo não suportado. Use .txt, .csv, .xlsx ou .xls.');
           setIsProcessing(false);
           return;
         }
         
-        if (groupedBooks.length > 0) {
-          const result = onImport(groupedBooks);
+        if (booksToImport.length > 0) {
+          const result = onImport(booksToImport);
           setProcessedCount(result.processedCount);
           setUniqueBookCount(result.uniqueBookCount);
         }
@@ -146,7 +153,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
       <DialogHeader>
         <DialogTitle>Importar Livros</DialogTitle>
         <DialogDescription>
-          Selecione um arquivo para cadastrar os livros. O sistema agrupará por código e somará as quantidades.
+          Selecione um arquivo para cadastrar os livros. <strong>Atenção:</strong> Esta ação substituirá todos os livros existentes no sistema.
         </DialogDescription>
       </DialogHeader>
       
@@ -158,9 +165,11 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
             <AlertDescription>
               <ul className="list-disc list-inside text-sm space-y-1 mt-2">
                 <li>O arquivo pode ser <strong>.txt, .csv, .xlsx ou .xls</strong>.</li>
+                <li>A primeira linha (cabeçalho) será ignorada.</li>
                 <li>A ordem das colunas deve ser: <br />
-                  <code className="font-mono bg-muted p-1 rounded text-xs">Código;Título;Autor;Categoria;Editora;Tipo;ISBN;...</code>
+                  <code className="font-mono bg-muted p-1 rounded text-xs">Código;Título;Autor;Categoria;Editora;Tipo;ISBN;Quantidade</code>
                 </li>
+                 <li>A coluna <strong>Quantidade</strong> é opcional. Se não for informada, o valor será 1.</li>
               </ul>
             </AlertDescription>
           </Alert>
@@ -176,7 +185,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
             <FileText className="h-4 w-4" />
             <AlertTitle>Importação Concluída</AlertTitle>
             <AlertDescription>
-              Foram processados <strong>{uniqueBookCount}</strong> tipos de livros únicos, totalizando <strong>{processedCount}</strong> cópias.
+              Foram processados <strong>{uniqueBookCount}</strong> tipos de livros, totalizando <strong>{processedCount}</strong> cópias.
             </AlertDescription>
           </Alert>
         </div>

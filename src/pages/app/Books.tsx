@@ -104,22 +104,15 @@ const BooksPage = () => {
   };
 
   const handleImportBooks = (importedBooks: Book[]) => {
-    const updatedBooks = [...books];
-    let totalCopiesAdded = 0;
+    // This replaces all existing books with the imported ones.
+    setBooks(importedBooks);
 
-    importedBooks.forEach(importedBook => {
-      const existingBookIndex = updatedBooks.findIndex(b => b.code === importedBook.code);
-      if (existingBookIndex !== -1) {
-        updatedBooks[existingBookIndex].quantity += importedBook.quantity;
-      } else {
-        updatedBooks.push(importedBook);
-      }
-      totalCopiesAdded += importedBook.quantity;
-    });
+    const totalCopiesImported = importedBooks.reduce((sum, book) => sum + book.quantity, 0);
+    const uniqueBookCount = importedBooks.length;
 
-    setBooks(updatedBooks);
-    showSuccess(`${totalCopiesAdded} cópias de ${importedBooks.length} livros foram importadas/atualizadas!`);
-    return { processedCount: totalCopiesAdded, uniqueBookCount: importedBooks.length };
+    showSuccess(`${totalCopiesImported} cópias de ${uniqueBookCount} livros foram importadas. Os dados anteriores foram substituídos.`);
+    
+    return { processedCount: totalCopiesImported, uniqueBookCount: uniqueBookCount };
   };
 
   const openEditDialog = (book: Book) => {
