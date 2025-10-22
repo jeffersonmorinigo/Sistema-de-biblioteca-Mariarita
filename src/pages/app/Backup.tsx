@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Download, Upload, AlertTriangle } from 'lucide-react';
+import { Download, Upload, AlertTriangle, Database } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { format } from 'date-fns';
 
@@ -24,19 +24,27 @@ const BackupPage = () => {
   const LOCAL_STORAGE_KEYS = [
     'books', 'students', 'loans', 'users', 
     'schoolName', 'book_categories', 'student_classes',
-    'isAuthenticated' // Manter o estado de login
+    'isAuthenticated'
   ];
 
-  const handleBackup = () => {
-    try {
-      const backupData: { [key: string]: any } = {};
-      LOCAL_STORAGE_KEYS.forEach(key => {
-        const item = localStorage.getItem(key);
-        if (item) {
-          backupData[key] = JSON.parse(item);
+  const getAllData = () => {
+    const data: { [key: string]: any } = {};
+    LOCAL_STORAGE_KEYS.forEach(key => {
+      const item = localStorage.getItem(key);
+      if (item) {
+        try {
+          data[key] = JSON.parse(item);
+        } catch (e) {
+          console.warn(`Could not parse localStorage item: ${key}`);
         }
-      });
+      }
+    });
+    return data;
+  };
 
+  const handleJsonBackup = () => {
+    try {
+      const backupData = getAllData();
       const jsonString = JSON.stringify(backupData, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -48,17 +56,68 @@ const BackupPage = () => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-
-      showSuccess('Backup gerado e baixado com sucesso!');
+      showSuccess('Backup JSON gerado e baixado com sucesso!');
     } catch (error) {
-      console.error('Erro ao gerar backup:', error);
-      showError('Ocorreu um erro ao gerar o backup.');
+      console.error('Erro ao gerar backup JSON:', error);
+      showError('Ocorreu um erro ao gerar o backup JSON.');
     }
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      setRestoreFile(event.target.files[0]);
+  const escapeSql = (str: any) => {
+    if (str === null || typeof str === 'undefined') return 'NULL';
+    return `'${String(str).replace(/'/g, "''")}'`;
+  };
+
+  const handleSqlBackup = () => {
+    try {
+      const data = getAllData();
+      let sqlString = `-- Backup do Sistema de Biblioteca\n`;
+      sqlString += `-- Gerado em: ${new Date().toISOString()}\n\n`;
+
+      // Helper to generate table SQL
+      const generateTableSql = (tableName: string, columns: string[], items: any[]) => {
+        if (!items || items.length === 0) return '';
+        let tableSql = `DROP TABLE IF EXISTS ${tableName};\n`;
+        tableSql += `CREATE TABLE ${tableName} (\n  ${columns.map(c => `${c} TEXT`).join(',\n  ')}\n);\n\n`;
+        items.forEach(item => {
+          const values = columns.map(col => escapeSql(item[col])).join(', ');
+          tableSql += `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${values});\n`;
+        });
+        return tableSql + '\n';
+      };
+
+      sqlString += generateTableSql('users', ['id', 'name', 'email', 'password'], data.users);
+      sqlString += generateTableSql('students', ['id', 'registration', 'name', 'class'], data.students);
+      sqlString += generateTableSql('books', ['id', 'code', 'isbn', 'title', 'author', 'publisher', 'shelf', 'category', 'status'], data.books);
+      sqlString += generateTableSql('loans', ['id', 'studentId', 'bookId', 'loanDate', 'expectedReturnDate', 'returnDate'], data.loans);
+
+      // Handle settings
+      sqlString += `DROP TABLE IF EXISTS settings;\n`;
+      sqlString += `CREATE TABLE settings (\n  key TEXT PRIMARY KEY,\n  value TEXT\n);\n\n`;
+      if (data.schoolName) {
+        sqlString += `INSERT INTO settings (key, value) VALUES ('schoolName', ${escapeSql(data.schoolName)});\n`;
+      }
+      if (data.book_categories) {
+        sqlString += `INSERT INTO settings (key, value) VALUES ('book_categories', ${escapeSql(JSON.stringify(data.book_categories))});\n`;
+      }
+      if (data.student_classes) {
+        sqlString += `INSERT INTO settings (key, value) VALUES ('student_classes', ${escapeSql(JSON.stringify(data.student_classes))});\n`;
+      }
+
+      const blob = new Blob([sqlString], { type: 'application/sql' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const timestamp = format(new Date(), 'yyyy-MM-dd_HH-mm-ss');
+      link.href = url;
+      link.download = `backup_biblioteca_${timestamp}.sql`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showSuccess('Backup SQL gerado e baixado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar backup SQL:', error);
+      showError('Ocorreu um erro ao gerar o backup SQL.');
     }
   };
 
@@ -72,30 +131,20 @@ const BackupPage = () => {
     reader.onload = (event) => {
       try {
         const backupData = JSON.parse(event.target?.result as string);
-        
-        // Validação simples para garantir que é um arquivo de backup válido
         const hasRequiredKeys = LOCAL_STORAGE_KEYS.some(key => backupData.hasOwnProperty(key));
         if (!hasRequiredKeys) {
           showError('Arquivo de backup inválido ou corrompido.');
           return;
         }
-
-        // Limpa o localStorage atual antes de restaurar
-        // localStorage.clear(); // Opcional: pode ser mais seguro apenas sobrescrever
-
         Object.keys(backupData).forEach(key => {
           if (LOCAL_STORAGE_KEYS.includes(key)) {
             localStorage.setItem(key, JSON.stringify(backupData[key]));
           }
         });
-
         showSuccess('Backup restaurado com sucesso! A página será recarregada.');
-        
-        // Recarrega a página para que todas as informações sejam atualizadas
         setTimeout(() => {
           window.location.reload();
         }, 2000);
-
       } catch (error) {
         console.error('Erro ao restaurar backup:', error);
         showError('Ocorreu um erro ao restaurar o backup. Verifique o arquivo.');
@@ -112,25 +161,38 @@ const BackupPage = () => {
           <CardHeader>
             <CardTitle>Fazer Backup</CardTitle>
             <CardDescription>
-              Crie um backup completo de todos os dados da aplicação. O arquivo será salvo na sua pasta de downloads.
+              Crie uma cópia de segurança de todos os dados da aplicação. Salve os arquivos em um local seguro.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              Recomendamos fazer backups diários e salvar o arquivo em um local seguro na nuvem (Google Drive, Dropbox, etc.).
-            </p>
-            <Button onClick={handleBackup}>
-              <Download className="mr-2 h-4 w-4" />
-              Baixar Arquivo de Backup
-            </Button>
+          <CardContent className="space-y-4">
+            <div className="p-4 border rounded-lg">
+              <h4 className="font-semibold">Backup Principal (JSON)</h4>
+              <p className="text-sm text-muted-foreground mt-1 mb-3">
+                Use este arquivo para restaurar os dados neste sistema.
+              </p>
+              <Button onClick={handleJsonBackup}>
+                <Download className="mr-2 h-4 w-4" />
+                Baixar Backup (JSON)
+              </Button>
+            </div>
+            <div className="p-4 border rounded-lg">
+              <h4 className="font-semibold">Backup de Portabilidade (SQL)</h4>
+              <p className="text-sm text-muted-foreground mt-1 mb-3">
+                Use este arquivo para migrar os dados para outro sistema de banco de dados. <strong>Não pode ser restaurado aqui.</strong>
+              </p>
+              <Button onClick={handleSqlBackup} variant="secondary">
+                <Database className="mr-2 h-4 w-4" />
+                Baixar Backup (SQL)
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Restaurar Backup</CardTitle>
+            <CardTitle>Restaurar Backup (JSON)</CardTitle>
             <CardDescription>
-              Restaure os dados da aplicação a partir de um arquivo de backup.
+              Restaure os dados da aplicação a partir de um arquivo de backup <strong>.json</strong>.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -143,7 +205,7 @@ const BackupPage = () => {
             </Alert>
             <div className="space-y-2">
               <label htmlFor="restore-file" className="text-sm font-medium">Arquivo de Backup (.json)</label>
-              <Input id="restore-file" type="file" accept=".json" onChange={handleFileChange} />
+              <Input id="restore-file" type="file" accept=".json" onChange={(e) => setRestoreFile(e.target.files ? e.target.files[0] : null)} />
             </div>
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -156,7 +218,7 @@ const BackupPage = () => {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Esta ação é irreversível e substituirá todos os dados existentes (livros, alunos, empréstimos, etc.) pelos dados do arquivo de backup selecionado.
+                    Esta ação é irreversível e substituirá todos os dados existentes pelos dados do arquivo de backup selecionado.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
