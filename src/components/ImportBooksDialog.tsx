@@ -104,40 +104,50 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
     setIsProcessing(true);
 
     const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        let booksToImport: Book[] = [];
-        const fileName = file.name.toLowerCase();
 
-        if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
-          const content = event.target?.result as string;
-          const rows = content.split(/\r?\n/).map(line => line.split(line.includes(';') ? ';' : '\t'));
-          booksToImport = processRows(rows.slice(1)); // slice(1) to skip header
-        } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-          const data = new Uint8Array(event.target?.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
-          booksToImport = processRows(rows.slice(1)); // slice(1) to skip header
-        } else {
-          showError('Formato de arquivo não suportado. Use .txt, .csv, .xlsx ou .xls.');
+    reader.onerror = () => {
+      showError('Ocorreu um erro ao ler o arquivo.');
+      console.error('FileReader error:', reader.error);
+      setIsProcessing(false);
+    };
+
+    reader.onload = (event) => {
+      // Use a timeout to avoid blocking the UI thread, allowing the "Processing..." state to render.
+      setTimeout(() => {
+        try {
+          let booksToImport: Book[] = [];
+          const fileName = file.name.toLowerCase();
+
+          if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
+            const content = event.target?.result as string;
+            const rows = content.split(/\r?\n/).map(line => line.split(line.includes(';') ? ';' : '\t'));
+            booksToImport = processRows(rows.slice(1)); // slice(1) to skip header
+          } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+            const data = new Uint8Array(event.target?.result as ArrayBuffer);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+            booksToImport = processRows(rows.slice(1)); // slice(1) to skip header
+          } else {
+            showError('Formato de arquivo não suportado. Use .txt, .csv, .xlsx ou .xls.');
+            setIsProcessing(false);
+            return;
+          }
+          
+          if (booksToImport.length > 0) {
+            const result = onImport(booksToImport);
+            setProcessedCount(result.processedCount);
+            setUniqueBookCount(result.uniqueBookCount);
+          }
+          setHasResult(true);
+        } catch (error) {
+          showError('Ocorreu um erro crítico ao processar o arquivo.');
+          console.error(error);
+        } finally {
           setIsProcessing(false);
-          return;
         }
-        
-        if (booksToImport.length > 0) {
-          const result = onImport(booksToImport);
-          setProcessedCount(result.processedCount);
-          setUniqueBookCount(result.uniqueBookCount);
-        }
-        setHasResult(true);
-      } catch (error) {
-        showError('Ocorreu um erro crítico ao processar o arquivo.');
-        console.error(error);
-      } finally {
-        setIsProcessing(false);
-      }
+      }, 50);
     };
 
     const fileName = file.name.toLowerCase();
