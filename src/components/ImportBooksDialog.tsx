@@ -26,6 +26,7 @@ interface ImportBooksDialogProps {
 // Helper function to process a single row
 const processRow = (row: any[], index: number, seenCodes: Set<string>): Book | null => {
   // Expected columns: Código;Título;Autor;Categoria;Editora;Tipo;ISBN;Quantidade
+  // Note: index here is the 0-based index in the full array (including header at index 0)
   const [code, title, author, category, publisher, bookType, isbn, quantityStr] = row.map(cell => String(cell || '').trim());
 
   if (!code) {
@@ -36,7 +37,7 @@ const processRow = (row: any[], index: number, seenCodes: Set<string>): Book | n
   const upperCode = code.toUpperCase();
 
   if (seenCodes.has(upperCode)) {
-      showError(`Código duplicado no arquivo: ${upperCode}. Apenas a 1ª ocorrência foi importada.`);
+      // We don't show an error for every duplicate, only log it, as it might spam toasts
       console.warn(`Skipping duplicate code in row ${index + 1}: ${upperCode}`);
       return null;
   }
@@ -64,8 +65,9 @@ const processRowsInChunks = (rows: any[][], onProgress: (progress: number) => vo
     const newBooks: Book[] = [];
     const seenCodes = new Set<string>();
     const totalRows = rows.length;
-    const chunkSize = 500; // Process 500 rows at a time
-    let currentRow = 0;
+    // Start processing from index 1 to skip the header row
+    let currentRow = 1; 
+    const chunkSize = 500; 
 
     const processChunk = () => {
       const start = currentRow;
@@ -73,8 +75,8 @@ const processRowsInChunks = (rows: any[][], onProgress: (progress: number) => vo
 
       for (let i = start; i < end; i++) {
         const row = rows[i];
-        // Skip header row (index 0) and empty rows
-        if (i === 0 || !row || row.every(cell => cell === null || String(cell).trim() === '')) {
+        
+        if (!row || row.every(cell => cell === null || String(cell).trim() === '')) {
           continue; 
         }
         
@@ -85,19 +87,22 @@ const processRowsInChunks = (rows: any[][], onProgress: (progress: number) => vo
       }
 
       currentRow = end;
-      onProgress(Math.floor((currentRow / totalRows) * 100));
+      // Calculate progress based on total rows (excluding header)
+      const progressValue = Math.floor(((currentRow - 1) / (totalRows - 1)) * 100);
+      onProgress(Math.min(progressValue, 99)); // Cap at 99% until finished
 
       if (currentRow < totalRows) {
         // Continue processing in the next tick
         setTimeout(processChunk, 10);
       } else {
         // Finished processing
+        onProgress(100);
         resolve(newBooks);
       }
     };
 
-    // Start processing, skipping the header row if it exists
-    if (totalRows > 0) {
+    // Start processing only if there are rows beyond the header
+    if (totalRows > 1) {
       processChunk();
     } else {
       resolve([]);
