@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,50 +23,86 @@ interface ImportBooksDialogProps {
   closeDialog: () => void;
 }
 
-const processRows = (rows: any[][]): Book[] => {
-  const newBooks: Book[] = [];
-  const seenCodes = new Set<string>();
+// Helper function to process a single row
+const processRow = (row: any[], index: number, seenCodes: Set<string>): Book | null => {
+  // Expected columns: Código;Título;Autor;Categoria;Editora;Tipo;ISBN;Quantidade
+  const [code, title, author, category, publisher, bookType, isbn, quantityStr] = row.map(cell => String(cell || '').trim());
 
-  rows.forEach((row, index) => {
-    // Skip header row (index 0) and empty rows
-    if (index === 0 || !row || row.every(cell => cell === null || String(cell).trim() === '')) {
-      return; 
+  if (!code) {
+    console.warn(`Skipping row ${index + 1}: Code is missing.`);
+    return null;
+  }
+  
+  const upperCode = code.toUpperCase();
+
+  if (seenCodes.has(upperCode)) {
+      showError(`Código duplicado no arquivo: ${upperCode}. Apenas a 1ª ocorrência foi importada.`);
+      console.warn(`Skipping duplicate code in row ${index + 1}: ${upperCode}`);
+      return null;
+  }
+  seenCodes.add(upperCode);
+
+  const quantity = parseInt(quantityStr, 10);
+
+  return {
+    id: generateId(),
+    code: upperCode,
+    title: title.toUpperCase(),
+    author: author.toUpperCase(),
+    category: category.toUpperCase() || 'GERAL',
+    publisher: publisher.toUpperCase(),
+    bookType: bookType.toUpperCase(),
+    isbn: isbn || '',
+    shelf: 'N/A',
+    quantity: !isNaN(quantity) && quantity > 0 ? quantity : 1,
+  };
+};
+
+// Async function to process rows in chunks
+const processRowsInChunks = (rows: any[][], onProgress: (progress: number) => void): Promise<Book[]> => {
+  return new Promise((resolve) => {
+    const newBooks: Book[] = [];
+    const seenCodes = new Set<string>();
+    const totalRows = rows.length;
+    const chunkSize = 500; // Process 500 rows at a time
+    let currentRow = 0;
+
+    const processChunk = () => {
+      const start = currentRow;
+      const end = Math.min(currentRow + chunkSize, totalRows);
+
+      for (let i = start; i < end; i++) {
+        const row = rows[i];
+        // Skip header row (index 0) and empty rows
+        if (i === 0 || !row || row.every(cell => cell === null || String(cell).trim() === '')) {
+          continue; 
+        }
+        
+        const book = processRow(row, i, seenCodes);
+        if (book) {
+          newBooks.push(book);
+        }
+      }
+
+      currentRow = end;
+      onProgress(Math.floor((currentRow / totalRows) * 100));
+
+      if (currentRow < totalRows) {
+        // Continue processing in the next tick
+        setTimeout(processChunk, 10);
+      } else {
+        // Finished processing
+        resolve(newBooks);
+      }
+    };
+
+    // Start processing, skipping the header row if it exists
+    if (totalRows > 0) {
+      processChunk();
+    } else {
+      resolve([]);
     }
-
-    // Expected columns: Código;Título;Autor;Categoria;Editora;Tipo;ISBN;Quantidade
-    const [code, title, author, category, publisher, bookType, isbn, quantityStr] = row.map(cell => String(cell || '').trim());
-
-    if (!code) {
-      console.warn(`Skipping row ${index + 1}: Code is missing.`);
-      return;
-    }
-    
-    const upperCode = code.toUpperCase();
-
-    if (seenCodes.has(upperCode)) {
-        showError(`Código duplicado no arquivo: ${upperCode}. Apenas a 1ª ocorrência foi importada.`);
-        console.warn(`Skipping duplicate code in row ${index + 1}: ${upperCode}`);
-        return;
-    }
-    seenCodes.add(upperCode);
-
-    const quantity = parseInt(quantityStr, 10);
-
-    newBooks.push({
-      id: generateId(),
-      code: upperCode,
-      title: title.toUpperCase(),
-      author: author.toUpperCase(),
-      category: category.toUpperCase() || 'GERAL',
-      publisher: publisher.toUpperCase(),
-      bookType: bookType.toUpperCase(),
-      isbn: isbn || '',
-      shelf: 'N/A',
-      quantity: !isNaN(quantity) && quantity > 0 ? quantity : 1,
-    });
   });
-
-  return newBooks;
 };
 
 
@@ -76,6 +112,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
   const [hasResult, setHasResult] = useState(false);
   const [processedCount, setProcessedCount] = useState(0);
   const [uniqueBookCount, setUniqueBookCount] = useState(0);
+  const [progress, setProgress] = useState(0);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -96,14 +133,16 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
     setHasResult(false);
     setProcessedCount(0);
     setUniqueBookCount(0);
+    setProgress(0);
   };
 
-  const handleImport = () => {
+  const handleImport = useCallback(() => {
     if (!file) {
       showError('Por favor, selecione um arquivo para importar.');
       return;
     }
     setIsProcessing(true);
+    setProgress(0);
 
     const reader = new FileReader();
 
@@ -113,65 +152,70 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
       setIsProcessing(false);
     };
 
-    reader.onload = (event) => {
-      // Use a timeout to avoid blocking the UI thread, allowing the "Processing..." state to render.
-      setTimeout(() => {
-        try {
-          let booksToImport: Book[] = [];
-          const fileName = file.name.toLowerCase();
-          const fileResult = event.target?.result;
+    reader.onload = async (event) => {
+      try {
+        let rows: any[][] = [];
+        const fileName = file.name.toLowerCase();
+        const fileResult = event.target?.result;
 
-          if (!fileResult) {
-            showError('O arquivo está vazio ou não pôde ser lido.');
-            setIsProcessing(false);
-            return;
-          }
-
-          if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
-            const content = fileResult as string;
-            // Try to detect delimiter: comma, semicolon, or tab
-            const delimiter = content.includes(';') ? ';' : (content.includes(',') ? ',' : '\t');
-            const rows = content.split(/\r?\n/).map(line => line.split(delimiter));
-            booksToImport = processRows(rows);
-          } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-            const data = new Uint8Array(fileResult as ArrayBuffer);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            // Use { header: 1 } to get an array of arrays (rows), including the header
-            const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
-            booksToImport = processRows(rows);
-          } else {
-            showError('Formato de arquivo não suportado. Use .txt, .csv, .xlsx ou .xls.');
-            setIsProcessing(false);
-            return;
-          }
-          
-          if (booksToImport.length > 0) {
-            const result = onImport(booksToImport);
-            setProcessedCount(result.processedCount);
-            setUniqueBookCount(result.uniqueBookCount);
-          } else {
-            showError('Nenhum livro válido encontrado no arquivo.');
-          }
-          setHasResult(true);
-        } catch (error) {
-          showError('Ocorreu um erro crítico ao processar o arquivo. Verifique o formato das colunas.');
-          console.error('Critical import error:', error);
-        } finally {
+        if (!fileResult) {
+          showError('O arquivo está vazio ou não pôde ser lido.');
           setIsProcessing(false);
+          return;
         }
-      }, 50);
+
+        if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
+          const content = fileResult as string;
+          // Try to detect delimiter: comma, semicolon, or tab
+          const delimiter = content.includes(';') ? ';' : (content.includes(',') ? ',' : '\t');
+          rows = content.split(/\r?\n/).map(line => line.split(delimiter));
+        } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+          const data = new Uint8Array(fileResult as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          // Use { header: 1 } to get an array of arrays (rows), including the header
+          rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+        } else {
+          showError('Formato de arquivo não suportado. Use .txt, .csv, .xlsx ou .xls.');
+          setIsProcessing(false);
+          return;
+        }
+        
+        if (rows.length <= 1) {
+          showError('Nenhum dado válido encontrado no arquivo.');
+          setIsProcessing(false);
+          return;
+        }
+
+        // Process rows asynchronously in chunks
+        const booksToImport = await processRowsInChunks(rows, setProgress);
+        
+        if (booksToImport.length > 0) {
+          const result = onImport(booksToImport);
+          setProcessedCount(result.processedCount);
+          setUniqueBookCount(result.uniqueBookCount);
+        } else {
+          showError('Nenhum livro válido encontrado após o processamento.');
+        }
+        setHasResult(true);
+
+      } catch (error) {
+        showError('Ocorreu um erro crítico ao processar o arquivo. Verifique o formato das colunas.');
+        console.error('Critical import error:', error);
+      } finally {
+        setIsProcessing(false);
+        setProgress(100);
+      }
     };
 
     const fileName = file.name.toLowerCase();
     if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
       reader.readAsText(file, 'UTF-8');
     } else {
-      // For Excel files, read as ArrayBuffer
       reader.readAsArrayBuffer(file);
     }
-  };
+  }, [file, onImport]);
 
   return (
     <DialogContent className="sm:max-w-[625px]">
@@ -230,7 +274,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
               <Button type="button" variant="secondary">Cancelar</Button>
             </DialogClose>
             <Button type="button" onClick={handleImport} disabled={!file || isProcessing}>
-              {isProcessing ? 'Processando...' : 'Importar'}
+              {isProcessing ? `Processando... (${progress}%)` : 'Importar'}
             </Button>
           </>
         )}
