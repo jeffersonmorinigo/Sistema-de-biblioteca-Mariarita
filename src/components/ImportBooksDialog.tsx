@@ -28,14 +28,16 @@ const processRows = (rows: any[][]): Book[] => {
   const seenCodes = new Set<string>();
 
   rows.forEach((row, index) => {
-    if (!row || row.every(cell => cell === null || String(cell).trim() === '')) {
-      return; // Skip empty rows
+    // Skip header row (index 0) and empty rows
+    if (index === 0 || !row || row.every(cell => cell === null || String(cell).trim() === '')) {
+      return; 
     }
 
+    // Expected columns: Código;Título;Autor;Categoria;Editora;Tipo;ISBN;Quantidade
     const [code, title, author, category, publisher, bookType, isbn, quantityStr] = row.map(cell => String(cell || '').trim());
 
     if (!code) {
-      console.warn(`Skipping row ${index + 2}: Code is missing.`);
+      console.warn(`Skipping row ${index + 1}: Code is missing.`);
       return;
     }
     
@@ -43,7 +45,7 @@ const processRows = (rows: any[][]): Book[] => {
 
     if (seenCodes.has(upperCode)) {
         showError(`Código duplicado no arquivo: ${upperCode}. Apenas a 1ª ocorrência foi importada.`);
-        console.warn(`Skipping duplicate code in row ${index + 2}: ${upperCode}`);
+        console.warn(`Skipping duplicate code in row ${index + 1}: ${upperCode}`);
         return;
     }
     seenCodes.add(upperCode);
@@ -117,18 +119,28 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
         try {
           let booksToImport: Book[] = [];
           const fileName = file.name.toLowerCase();
+          const fileResult = event.target?.result;
+
+          if (!fileResult) {
+            showError('O arquivo está vazio ou não pôde ser lido.');
+            setIsProcessing(false);
+            return;
+          }
 
           if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
-            const content = event.target?.result as string;
-            const rows = content.split(/\r?\n/).map(line => line.split(line.includes(';') ? ';' : '\t'));
-            booksToImport = processRows(rows.slice(1)); // slice(1) to skip header
+            const content = fileResult as string;
+            // Try to detect delimiter: comma, semicolon, or tab
+            const delimiter = content.includes(';') ? ';' : (content.includes(',') ? ',' : '\t');
+            const rows = content.split(/\r?\n/).map(line => line.split(delimiter));
+            booksToImport = processRows(rows);
           } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-            const data = new Uint8Array(event.target?.result as ArrayBuffer);
+            const data = new Uint8Array(fileResult as ArrayBuffer);
             const workbook = XLSX.read(data, { type: 'array' });
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
+            // Use { header: 1 } to get an array of arrays (rows), including the header
             const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
-            booksToImport = processRows(rows.slice(1)); // slice(1) to skip header
+            booksToImport = processRows(rows);
           } else {
             showError('Formato de arquivo não suportado. Use .txt, .csv, .xlsx ou .xls.');
             setIsProcessing(false);
@@ -139,11 +151,13 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
             const result = onImport(booksToImport);
             setProcessedCount(result.processedCount);
             setUniqueBookCount(result.uniqueBookCount);
+          } else {
+            showError('Nenhum livro válido encontrado no arquivo.');
           }
           setHasResult(true);
         } catch (error) {
-          showError('Ocorreu um erro crítico ao processar o arquivo.');
-          console.error(error);
+          showError('Ocorreu um erro crítico ao processar o arquivo. Verifique o formato das colunas.');
+          console.error('Critical import error:', error);
         } finally {
           setIsProcessing(false);
         }
@@ -154,6 +168,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
     if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
       reader.readAsText(file, 'UTF-8');
     } else {
+      // For Excel files, read as ArrayBuffer
       reader.readAsArrayBuffer(file);
     }
   };
