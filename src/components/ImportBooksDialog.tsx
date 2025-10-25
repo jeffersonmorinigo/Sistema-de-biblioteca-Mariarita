@@ -37,7 +37,7 @@ const processRow = (row: any[], index: number, seenCodes: Set<string>): Book | n
   const upperCode = code.toUpperCase();
 
   if (seenCodes.has(upperCode)) {
-      // We don't show an error for every duplicate, only log it, as it might spam toasts
+      // Removed showError here to prevent UI freeze due to excessive toasts
       console.warn(`Skipping duplicate code in row ${index + 1}: ${upperCode}`);
       return null;
   }
