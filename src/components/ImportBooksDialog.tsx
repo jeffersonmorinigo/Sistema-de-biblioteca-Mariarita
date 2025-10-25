@@ -27,6 +27,7 @@ interface ImportBooksDialogProps {
 const processRow = (row: any[], index: number, seenCodes: Set<string>): Book | null => {
   // Expected columns: Código;Título;Autor;Categoria;Editora;Tipo;ISBN;Quantidade
   // Note: index here is the 0-based index in the full array (including header at index 0)
+  // We ensure all cells are treated as strings for consistency
   const [code, title, author, category, publisher, bookType, isbn, quantityStr] = row.map(cell => String(cell || '').trim());
 
   if (!code) {
@@ -76,6 +77,7 @@ const processRowsInChunks = (rows: any[][], onProgress: (progress: number) => vo
       for (let i = start; i < end; i++) {
         const row = rows[i];
         
+        // Check if row is valid and not just empty cells
         if (!row || row.every(cell => cell === null || String(cell).trim() === '')) {
           continue; 
         }
@@ -88,7 +90,9 @@ const processRowsInChunks = (rows: any[][], onProgress: (progress: number) => vo
 
       currentRow = end;
       // Calculate progress based on total rows (excluding header)
-      const progressValue = Math.floor(((currentRow - 1) / (totalRows - 1)) * 100);
+      const rowsToProcess = totalRows > 1 ? totalRows - 1 : 1;
+      const processedRows = currentRow - 1;
+      const progressValue = Math.floor((processedRows / rowsToProcess) * 100);
       onProgress(Math.min(progressValue, 99)); // Cap at 99% until finished
 
       if (currentRow < totalRows) {
@@ -179,8 +183,8 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
           const workbook = XLSX.read(data, { type: 'array' });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
-          // Use { header: 1 } to get an array of arrays (rows), including the header
-          // Using raw: false ensures that cell values are formatted as strings/numbers instead of raw internal values.
+          
+          // Use { header: 1, raw: false } to get an array of arrays (rows) with formatted string values
           rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: false });
         } else {
           showError('Formato de arquivo não suportado. Use .txt, .csv, .xlsx ou .xls.');
@@ -202,7 +206,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
           setProcessedCount(result.processedCount);
           setUniqueBookCount(result.uniqueBookCount);
         } else {
-          showError('Nenhum livro válido encontrado após o processamento.');
+          showError('Nenhum livro válido encontrado após o processamento. Verifique se o arquivo está vazio ou se os códigos estão duplicados.');
         }
         setHasResult(true);
 
