@@ -26,8 +26,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { PlusCircle, Search, Edit, Trash2 } from 'lucide-react';
+import { PlusCircle, Search, Edit, Trash2, Upload } from 'lucide-react';
 import StudentForm, { StudentFormData } from '@/components/StudentForm';
+import ImportStudentsDialog from '@/components/ImportStudentsDialog';
 import { showSuccess, showError } from '@/utils/toast';
 
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -48,7 +49,8 @@ const StudentsPage = () => {
   const [students, setStudents] = useLocalStorage<Student[]>('students', []);
   const [classes, setClasses] = useLocalStorage<string[]>('student_classes', defaultClasses);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   const filteredStudents = useMemo(() => {
@@ -87,8 +89,23 @@ const StudentsPage = () => {
   };
 
   const handleDeleteStudent = (id: string) => {
+    // TODO: Check for active loans before deleting student
     setStudents(students.filter(s => s.id !== id));
     showSuccess('Aluno excluído com sucesso!');
+  };
+
+  const handleImportStudents = (importedStudents: Student[]) => {
+    // This replaces all existing students with the imported ones.
+    setStudents(importedStudents);
+
+    // Update classes list based on imported students
+    const newClasses = new Set<string>();
+    importedStudents.forEach(s => newClasses.add(s.class));
+    setClasses(Array.from(newClasses).sort());
+
+    showSuccess(`${importedStudents.length} alunos foram importados. Os dados anteriores foram substituídos.`);
+    
+    return { processedCount: importedStudents.length };
   };
 
   const handleAddClass = (newClass: string) => {
@@ -109,12 +126,12 @@ const StudentsPage = () => {
 
   const openEditDialog = (student: Student) => {
     setSelectedStudent(student);
-    setIsDialogOpen(true);
+    setIsAddDialogOpen(true);
   };
 
   const openAddDialog = () => {
     setSelectedStudent(null);
-    setIsDialogOpen(true);
+    setIsAddDialogOpen(true);
   };
 
   return (
@@ -131,23 +148,37 @@ const StudentsPage = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={openAddDialog} className="w-full sm:w-auto">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Adicionar Aluno
-            </Button>
-          </DialogTrigger>
-          <StudentForm 
-            key={selectedStudent?.id || 'new'}
-            student={selectedStudent} 
-            onSubmit={selectedStudent ? handleEditStudent : handleAddStudent} 
-            closeDialog={() => setIsDialogOpen(false)}
-            classes={classes}
-            onAddClass={handleAddClass}
-            onDeleteClass={handleDeleteClass}
-          />
-        </Dialog>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="w-full sm:w-auto">
+                <Upload className="mr-2 h-4 w-4" />
+                Importar
+              </Button>
+            </DialogTrigger>
+            <ImportStudentsDialog 
+              onImport={handleImportStudents}
+              closeDialog={() => setIsImportDialogOpen(false)}
+            />
+          </Dialog>
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={openAddDialog} className="w-full sm:w-auto">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Adicionar Aluno
+              </Button>
+            </DialogTrigger>
+            <StudentForm 
+              key={selectedStudent?.id || 'new'}
+              student={selectedStudent} 
+              onSubmit={selectedStudent ? handleEditStudent : handleAddStudent} 
+              closeDialog={() => setIsAddDialogOpen(false)}
+              classes={classes}
+              onAddClass={handleAddClass}
+              onDeleteClass={handleDeleteClass}
+            />
+          </Dialog>
+        </div>
       </div>
 
       <div className="border rounded-lg overflow-x-auto">
