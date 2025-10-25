@@ -23,11 +23,47 @@ interface ImportBooksDialogProps {
   closeDialog: () => void;
 }
 
-// Helper function to process a single row
+// Helper function to validate and process a single book object from JSON
+const processJsonBook = (data: any, index: number, seenCodes: Set<string>): Book | null => {
+  const code = String(data.code || '').trim().toUpperCase();
+  const title = String(data.title || '').trim().toUpperCase();
+  const author = String(data.author || '').trim().toUpperCase();
+  const category = String(data.category || '').trim().toUpperCase() || 'GERAL';
+  const publisher = String(data.publisher || '').trim().toUpperCase();
+  const bookType = String(data.bookType || '').trim().toUpperCase();
+  const isbn = String(data.isbn || '').trim();
+  const shelf = String(data.shelf || '').trim().toUpperCase() || 'N/A';
+  const quantity = Number(data.quantity);
+
+  if (!code || !title || !author || !publisher || !bookType) {
+    console.warn(`Skipping JSON entry ${index + 1}: Missing required fields (code, title, author, publisher, bookType).`);
+    return null;
+  }
+
+  if (seenCodes.has(code)) {
+    console.warn(`Skipping duplicate code in JSON entry ${index + 1}: ${code}`);
+    return null;
+  }
+  seenCodes.add(code);
+
+  return {
+    id: generateId(),
+    code,
+    title,
+    author,
+    publisher,
+    shelf,
+    category,
+    bookType,
+    isbn,
+    quantity: !isNaN(quantity) && quantity > 0 ? Math.floor(quantity) : 1,
+  };
+};
+
+
+// Helper function to process a single row from CSV/XLSX
 const processRow = (row: any[], index: number, seenCodes: Set<string>): Book | null => {
   // Expected columns: Código;Título;Autor;Categoria;Editora;Tipo;ISBN;Quantidade
-  // Note: index here is the 0-based index in the full array (including header at index 0)
-  // We ensure all cells are treated as strings for consistency
   const [code, title, author, category, publisher, bookType, isbn, quantityRaw] = row.map(cell => String(cell || '').trim());
 
   if (!code) {
@@ -38,7 +74,6 @@ const processRow = (row: any[], index: number, seenCodes: Set<string>): Book | n
   const upperCode = code.toUpperCase();
 
   if (seenCodes.has(upperCode)) {
-      // Removed showError here to prevent UI freeze due to excessive toasts
       console.warn(`Skipping duplicate code in row ${index + 1}: ${upperCode}`);
       return null;
   }
@@ -62,42 +97,45 @@ const processRow = (row: any[], index: number, seenCodes: Set<string>): Book | n
   };
 };
 
-// Async function to process rows in chunks
-const processRowsInChunks = (rows: any[][], onProgress: (progress: number) => void): Promise<Book[]> => {
+// Async function to process rows/objects in chunks
+const processDataInChunks = (data: any[], isJson: boolean, onProgress: (progress: number) => void): Promise<Book[]> => {
   return new Promise((resolve) => {
     const newBooks: Book[] = [];
     const seenCodes = new Set<string>();
-    const totalRows = rows.length;
-    // Start processing from index 1 to skip the header row
-    let currentRow = 1; 
+    const totalItems = data.length;
+    // Start processing from index 1 if not JSON (to skip header)
+    let currentRow = isJson ? 0 : 1; 
     const chunkSize = 500; 
 
     const processChunk = () => {
       const start = currentRow;
-      const end = Math.min(currentRow + chunkSize, totalRows);
+      const end = Math.min(currentRow + chunkSize, totalItems);
 
       for (let i = start; i < end; i++) {
-        const row = rows[i];
+        const item = data[i];
         
-        // Check if row is valid and not just empty cells
-        if (!row || row.every(cell => cell === null || String(cell).trim() === '')) {
+        if (!item || (Array.isArray(item) && item.every(cell => cell === null || String(cell).trim() === ''))) {
           continue; 
         }
         
-        const book = processRow(row, i, seenCodes);
+        const book = isJson 
+          ? processJsonBook(item, i, seenCodes)
+          : processRow(item, i, seenCodes);
+          
         if (book) {
           newBooks.push(book);
         }
       }
 
       currentRow = end;
-      // Calculate progress based on total rows (excluding header)
-      const rowsToProcess = totalRows > 1 ? totalRows - 1 : 1;
-      const processedRows = currentRow - 1;
-      const progressValue = Math.floor((processedRows / rowsToProcess) * 100);
+      
+      // Calculate progress based on total items
+      const itemsToProcess = isJson ? totalItems : (totalItems > 1 ? totalItems - 1 : 1);
+      const processedItems = isJson ? currentRow : (currentRow - 1);
+      const progressValue = Math.floor((processedItems / itemsToProcess) * 100);
       onProgress(Math.min(progressValue, 99)); // Cap at 99% until finished
 
-      if (currentRow < totalRows) {
+      if (currentRow < totalItems) {
         // Continue processing in the next tick
         setTimeout(processChunk, 10);
       } else {
@@ -107,8 +145,8 @@ const processRowsInChunks = (rows: any[][], onProgress: (progress: number) => vo
       }
     };
 
-    // Start processing only if there are rows beyond the header
-    if (totalRows > 1) {
+    // Start processing only if there are items to process
+    if (totalItems > (isJson ? 0 : 1)) {
       processChunk();
     } else {
       resolve([]);
@@ -165,7 +203,8 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
 
     reader.onload = async (event) => {
       try {
-        let rows: any[][] = [];
+        let dataToProcess: any[] = [];
+        let isJsonImport = false;
         const fileName = file.name.toLowerCase();
         const fileResult = event.target?.result;
 
@@ -175,45 +214,56 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
           return;
         }
 
-        if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
+        if (fileName.endsWith('.json')) {
+          isJsonImport = true;
+          const content = fileResult as string;
+          const parsedJson = JSON.parse(content);
+          
+          if (!Array.isArray(parsedJson)) {
+            showError('O arquivo JSON deve ser um array de objetos de livros.');
+            setIsProcessing(false);
+            return;
+          }
+          dataToProcess = parsedJson;
+
+        } else if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
           const content = fileResult as string;
           // Try to detect delimiter: comma, semicolon, or tab
           const delimiter = content.includes(';') ? ';' : (content.includes(',') ? ',' : '\t');
-          rows = content.split(/\r?\n/).map(line => line.split(delimiter));
+          dataToProcess = content.split(/\r?\n/).map(line => line.split(delimiter));
         } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
           const data = new Uint8Array(fileResult as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
           
-          // Use { header: 1, raw: false } to get an array of arrays (rows) with formatted string values
-          rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: false });
+          dataToProcess = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: false });
         } else {
-          showError('Formato de arquivo não suportado. Use .txt, .csv, .xlsx ou .xls.');
+          showError('Formato de arquivo não suportado. Use .txt, .csv, .xlsx, .xls ou .json.');
           setIsProcessing(false);
           return;
         }
         
-        if (rows.length <= 1) {
+        if (dataToProcess.length === 0 || (!isJsonImport && dataToProcess.length <= 1)) {
           showError('Nenhum dado válido encontrado no arquivo.');
           setIsProcessing(false);
           return;
         }
 
-        // Process rows asynchronously in chunks
-        const booksToImport = await processRowsInChunks(rows, setProgress);
+        // Process data asynchronously in chunks
+        const booksToImport = await processDataInChunks(dataToProcess, isJsonImport, setProgress);
         
         if (booksToImport.length > 0) {
           const result = onImport(booksToImport);
           setProcessedCount(result.processedCount);
           setUniqueBookCount(result.uniqueBookCount);
         } else {
-          showError('Nenhum livro válido encontrado após o processamento. Verifique se o arquivo está vazio ou se os códigos estão duplicados.');
+          showError('Nenhum livro válido encontrado após o processamento. Verifique o formato dos dados ou se os códigos estão duplicados.');
         }
         setHasResult(true);
 
       } catch (error) {
-        showError('Ocorreu um erro crítico ao processar o arquivo. Verifique o formato das colunas ou se o arquivo está corrompido.');
+        showError('Ocorreu um erro crítico ao processar o arquivo. Verifique o formato das colunas/campos ou se o arquivo está corrompido.');
         console.error('Critical import error:', error);
       } finally {
         setIsProcessing(false);
@@ -222,7 +272,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
     };
 
     const fileName = file.name.toLowerCase();
-    if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
+    if (fileName.endsWith('.json') || fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
       reader.readAsText(file, 'UTF-8');
     } else {
       reader.readAsArrayBuffer(file);
@@ -245,18 +295,17 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
             <AlertTitle>Instruções de Formato</AlertTitle>
             <AlertDescription>
               <ul className="list-disc list-inside text-sm space-y-1 mt-2">
-                <li>O arquivo pode ser <strong>.txt, .csv, .xlsx ou .xls</strong>.</li>
-                <li>A primeira linha (cabeçalho) será ignorada.</li>
-                <li>A ordem das colunas deve ser: <br />
+                <li>O arquivo pode ser <strong>.txt, .csv, .xlsx, .xls ou .json</strong>.</li>
+                <li>Para <strong>JSON</strong>, o formato deve ser um array de objetos de livros (ex: <code className="font-mono bg-muted p-1 rounded text-xs">[{'{'} "code": "L001", "title": "...", "quantity": 1 {'}'}]</code>).</li>
+                <li>Para <strong>CSV/XLSX</strong>, a ordem das colunas deve ser: <br />
                   <code className="font-mono bg-muted p-1 rounded text-xs">Código;Título;Autor;Categoria;Editora;Tipo;ISBN;Quantidade</code>
                 </li>
-                 <li>A coluna <strong>Quantidade</strong> é opcional. Se não for informada, o valor será 1.</li>
               </ul>
             </AlertDescription>
           </Alert>
           <div className="grid w-full items-center gap-1.5">
             <Label htmlFor="book-file">Arquivo</Label>
-            <Input id="book-file" type="file" accept=".txt,.csv,.xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={handleFileChange} />
+            <Input id="book-file" type="file" accept=".txt,.csv,.xlsx,.xls,.json,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={handleFileChange} />
           </div>
         </div>
       ) : (
