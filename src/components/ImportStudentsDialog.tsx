@@ -75,10 +75,21 @@ const processJsonStudent = (data: any, index: number, seenRegistrations: Set<str
 
 
 // Helper function to process a single row from CSV/XLSX
-const processRow = (row: any[], index: number, seenRegistrations: Set<string>): Student | null => {
-  // Expected columns: RA;Nome Completo;Tipo;Turma;Bloqueado;Data_bloqueio
-  // Note: The user provided '0' for RA, so we use index 0.
-  const [registration, name, type, studentClass, blockedRaw, blockDateRaw] = row.map(cell => String(cell || '').trim());
+const processRow = (row: any[], index: number, seenRegistrations: Set<string>, headerMap: Map<string, number>): Student | null => {
+  
+  const getCell = (key: string) => {
+    const colIndex = headerMap.get(key);
+    return colIndex !== undefined ? String(row[colIndex] || '').trim() : '';
+  };
+
+  // Use header map to extract data
+  const registration = getCell('RA');
+  const name = getCell('NOME COMPLETO');
+  const type = getCell('TIPO');
+  const studentClass = getCell('TURMA');
+  const blockedRaw = getCell('BLOQUEADO');
+  const blockDateRaw = getCell('DATA_BLOQUEIO');
+
 
   if (!registration || !name || !studentClass) {
     console.warn(`Skipping row ${index + 1}: Missing required fields (RA, Nome, Turma).`);
@@ -129,8 +140,26 @@ const processDataInChunks = (data: any[], isJson: boolean, onProgress: (progress
     const newStudents: Student[] = [];
     const seenRegistrations = new Set<string>();
     const totalItems = data.length;
-    // Start processing from index 1 if not JSON (to skip header)
-    let currentRow = isJson ? 0 : 1; 
+    
+    let headerMap = new Map<string, number>();
+    let currentRow = 0;
+    
+    if (!isJson && totalItems > 0) {
+      // Assume first row is header for CSV/XLSX
+      const headerRow = data[0] as string[];
+      headerRow.forEach((header, index) => {
+        // Normalize header names for mapping
+        const normalizedHeader = header.toUpperCase().replace(/[^A-Z0-9]/g, '_').replace(/_{2,}/g, '_').trim();
+        if (normalizedHeader) {
+          headerMap.set(normalizedHeader, index);
+        }
+      });
+      currentRow = 1; // Start processing data from the second row
+    } else if (!isJson && totalItems === 0) {
+      resolve([]);
+      return;
+    }
+    
     const chunkSize = 500; 
 
     const processChunk = () => {
@@ -146,7 +175,7 @@ const processDataInChunks = (data: any[], isJson: boolean, onProgress: (progress
         
         const student = isJson 
           ? processJsonStudent(item, i, seenRegistrations)
-          : processRow(item, i, seenRegistrations);
+          : processRow(item, i, seenRegistrations, headerMap);
           
         if (student) {
           newStudents.push(student);
@@ -254,7 +283,15 @@ const ImportStudentsDialog = ({ onImport, closeDialog }: ImportStudentsDialogPro
           const content = fileResult as string;
           // Try to detect delimiter: comma, semicolon, or tab
           const delimiter = content.includes(';') ? ';' : (content.includes(',') ? ',' : '\t');
-          dataToProcess = content.split(/\r?\n/).map(line => line.split(delimiter));
+          
+          // Use XLSX parser for CSV/TXT to handle quotes and complex delimiters better
+          const workbook = XLSX.read(content, { type: 'binary', raw: true, FS: delimiter });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          
+          // Use header: 1 to get an array of arrays (rows)
+          dataToProcess = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: false });
+
         } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
           const data = new Uint8Array(fileResult as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
@@ -295,9 +332,13 @@ const ImportStudentsDialog = ({ onImport, closeDialog }: ImportStudentsDialogPro
     };
 
     const fileName = file.name.toLowerCase();
-    if (fileName.endsWith('.json') || fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
+    if (fileName.endsWith('.json')) {
       reader.readAsText(file, 'UTF-8');
+    } else if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
+      // Read as text for CSV/TXT processing
+      reader.readAsBinaryString(file);
     } else {
+      // Read as ArrayBuffer for XLSX/XLS
       reader.readAsArrayBuffer(file);
     }
   }, [file, onImport]);
@@ -320,8 +361,8 @@ const ImportStudentsDialog = ({ onImport, closeDialog }: ImportStudentsDialogPro
               <ul className="list-disc list-inside text-sm space-y-1 mt-2">
                 <li>O arquivo pode ser <strong>.txt, .csv, .xlsx, .xls ou .json</strong>.</li>
                 <li>Para <strong>JSON</strong>, o formato deve ser um array de objetos de alunos (ex: <code className="font-mono bg-muted p-1 rounded text-xs">[{'{'} "registration": "12345", "name": "...", "type": "ALUNO", "isBlocked": false {'}'}]</code>).</li>
-                <li>Para <strong>CSV/XLSX</strong>, a ordem das colunas deve ser: <br />
-                  <code className="font-mono bg-muted p-1 rounded text-xs">RA;Nome Completo;Tipo;Turma;Bloqueado (SIM/NÃO);Data_bloqueio (Opcional)</code>
+                <li>Para <strong>CSV/XLSX</strong>, o sistema tentará identificar as colunas pelos cabeçalhos. Use os seguintes nomes (sem acentos): <br />
+                  <code className="font-mono bg-muted p-1 rounded text-xs">RA;NOME COMPLETO;TIPO;TURMA;BLOQUEADO;DATA_BLOQUEIO</code>
                 </li>
               </ul>
             </AlertDescription>
