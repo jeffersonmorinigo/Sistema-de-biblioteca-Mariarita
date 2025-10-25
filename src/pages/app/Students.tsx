@@ -208,7 +208,7 @@ const StudentsPage = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>RA</TableHead>
+              <TableHead>ID</TableHead>
               <TableHead>Nome Completo</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>Turma</TableHead>
