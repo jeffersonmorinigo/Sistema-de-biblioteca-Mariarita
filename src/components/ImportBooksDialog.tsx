@@ -180,7 +180,8 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
           // Use { header: 1 } to get an array of arrays (rows), including the header
-          rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+          // Using raw: false ensures that cell values are formatted as strings/numbers instead of raw internal values.
+          rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: false });
         } else {
           showError('Formato de arquivo não suportado. Use .txt, .csv, .xlsx ou .xls.');
           setIsProcessing(false);
@@ -206,7 +207,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
         setHasResult(true);
 
       } catch (error) {
-        showError('Ocorreu um erro crítico ao processar o arquivo. Verifique o formato das colunas.');
+        showError('Ocorreu um erro crítico ao processar o arquivo. Verifique o formato das colunas ou se o arquivo está corrompido.');
         console.error('Critical import error:', error);
       } finally {
         setIsProcessing(false);
