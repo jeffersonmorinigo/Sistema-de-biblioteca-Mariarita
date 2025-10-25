@@ -28,7 +28,7 @@ const processRow = (row: any[], index: number, seenCodes: Set<string>): Book | n
   // Expected columns: Código;Título;Autor;Categoria;Editora;Tipo;ISBN;Quantidade
   // Note: index here is the 0-based index in the full array (including header at index 0)
   // We ensure all cells are treated as strings for consistency
-  const [code, title, author, category, publisher, bookType, isbn, quantityStr] = row.map(cell => String(cell || '').trim());
+  const [code, title, author, category, publisher, bookType, isbn, quantityRaw] = row.map(cell => String(cell || '').trim());
 
   if (!code) {
     console.warn(`Skipping row ${index + 1}: Code is missing.`);
@@ -44,6 +44,8 @@ const processRow = (row: any[], index: number, seenCodes: Set<string>): Book | n
   }
   seenCodes.add(upperCode);
 
+  // Clean quantity string: remove all non-digit characters (like commas, dots, spaces)
+  const quantityStr = quantityRaw.replace(/\D/g, '');
   const quantity = parseInt(quantityStr, 10);
 
   return {
