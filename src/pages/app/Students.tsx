@@ -213,6 +213,7 @@ const StudentsPage = () => {
               <TableHead>Tipo</TableHead>
               <TableHead>Turma</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Data Bloqueio</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -233,6 +234,11 @@ const StudentsPage = () => {
                     ) : (
                       <Badge variant="secondary">Ativo</Badge>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    {student.isBlocked && student.blockDate 
+                      ? format(new Date(student.blockDate), 'dd/MM/yyyy', { locale: ptBR })
+                      : 'N/A'}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" onClick={() => openEditDialog(student)}>
@@ -264,7 +270,7 @@ const StudentsPage = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center h-24">
+                <TableCell colSpan={7} className="text-center h-24">
                   Nenhum aluno encontrado.
                 </TableCell>
               </TableRow>
