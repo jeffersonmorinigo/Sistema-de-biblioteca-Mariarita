@@ -14,11 +14,15 @@ import {
 import { Student } from '@/lib/types';
 import { ClassCombobox } from './ClassCombobox';
 import { useState, useEffect } from 'react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { format } from 'date-fns';
 
 const studentSchema = z.object({
   registration: z.string().min(1, 'RA é obrigatório'),
   name: z.string().min(1, 'Nome é obrigatório'),
   class: z.string().min(1, 'Turma é obrigatória'),
+  type: z.string().min(1, 'Tipo é obrigatório'),
+  isBlocked: z.boolean().default(false),
 });
 
 export type StudentFormData = z.infer<typeof studentSchema>;
@@ -37,29 +41,42 @@ const StudentForm = ({ student, onSubmit, closeDialog, classes, onAddClass, onDe
     register,
     handleSubmit,
     control,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<StudentFormData>({
     resolver: zodResolver(studentSchema),
-    defaultValues: student || {
+    defaultValues: student ? {
+      registration: student.registration,
+      name: student.name,
+      class: student.class,
+      type: student.type || 'ALUNO', // Default type if missing
+      isBlocked: student.isBlocked || false,
+    } : {
       registration: '',
       name: '',
       class: '',
+      type: 'ALUNO',
+      isBlocked: false,
     },
   });
 
-  // Local state to ensure immediate visual updates
+  // Local state to ensure immediate visual updates for combobox
   const [currentClass, setCurrentClass] = useState(student?.class || '');
 
   useEffect(() => {
-    // Sync local state if the student prop changes (e.g., when editing)
     setCurrentClass(student?.class || '');
   }, [student]);
+
+  const isBlocked = watch('isBlocked');
 
   const handleFormSubmit = (data: StudentFormData) => {
     const transformedData = {
       ...data,
       name: data.name.toUpperCase(),
       class: data.class.toUpperCase(),
+      type: data.type.toUpperCase(),
+      // We don't handle blockDate here, it's handled in StudentsPage or during import
     };
     onSubmit(transformedData);
     closeDialog();
@@ -83,6 +100,11 @@ const StudentForm = ({ student, onSubmit, closeDialog, classes, onAddClass, onDe
             {errors.name && <p className="col-span-4 text-red-500 text-sm text-right">{errors.name.message}</p>}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="type" className="text-right">Tipo</Label>
+            <Input id="type" {...register('type')} className="col-span-3 uppercase" placeholder="Ex: ALUNO, PROFESSOR" />
+            {errors.type && <p className="col-span-4 text-red-500 text-sm text-right">{errors.type.message}</p>}
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="class" className="text-right">Turma</Label>
             <div className="col-span-3">
               <Controller
@@ -103,6 +125,26 @@ const StudentForm = ({ student, onSubmit, closeDialog, classes, onAddClass, onDe
               />
             </div>
             {errors.class && <p className="col-span-4 text-red-500 text-sm text-right">{errors.class.message}</p>}
+          </div>
+          
+          <div className="grid grid-cols-4 items-center gap-4 pt-2">
+            <Label htmlFor="isBlocked" className="text-right">Bloqueado</Label>
+            <div className="col-span-3 flex items-center space-x-2">
+              <Controller
+                name="isBlocked"
+                control={control}
+                render={({ field }) => (
+                  <Checkbox
+                    id="isBlocked"
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                )}
+              />
+              <span className="text-sm text-muted-foreground">
+                {isBlocked ? `Bloqueado desde ${student?.blockDate ? format(new Date(student.blockDate), 'dd/MM/yyyy') : 'N/A'}` : 'Não bloqueado'}
+              </span>
+            </div>
           </div>
         </div>
         <DialogFooter>

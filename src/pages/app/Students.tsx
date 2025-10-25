@@ -3,6 +3,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Student } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -26,10 +27,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { PlusCircle, Search, Edit, Trash2, Upload } from 'lucide-react';
+import { PlusCircle, Search, Edit, Trash2, Upload, Lock } from 'lucide-react';
 import StudentForm, { StudentFormData } from '@/components/StudentForm';
 import ImportStudentsDialog from '@/components/ImportStudentsDialog';
 import { showSuccess, showError } from '@/utils/toast';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
@@ -70,6 +73,9 @@ const StudentsPage = () => {
       registration: data.registration,
       name: data.name,
       class: data.class,
+      type: data.type,
+      isBlocked: data.isBlocked,
+      blockDate: data.isBlocked ? new Date().toISOString() : undefined,
     };
     setStudents([...students, newStudent]);
     showSuccess('Aluno adicionado com sucesso!');
@@ -81,8 +87,25 @@ const StudentsPage = () => {
       showError('Já existe outro aluno cadastrado com este RA.');
       return;
     }
+    
+    const wasBlocked = selectedStudent.isBlocked;
+    const isNowBlocked = data.isBlocked;
+    let newBlockDate = selectedStudent.blockDate;
+
+    if (isNowBlocked && !wasBlocked) {
+      // Student was unblocked, now blocked -> set new date
+      newBlockDate = new Date().toISOString();
+    } else if (!isNowBlocked && wasBlocked) {
+      // Student was blocked, now unblocked -> clear date
+      newBlockDate = undefined;
+    }
+    
     setStudents(
-      students.map((s): Student => (s.id === selectedStudent.id ? { ...s, ...data } : s))
+      students.map((s): Student => (s.id === selectedStudent.id ? { 
+        ...s, 
+        ...data, 
+        blockDate: newBlockDate 
+      } : s))
     );
     showSuccess('Aluno atualizado com sucesso!');
     setSelectedStudent(null);
@@ -187,7 +210,9 @@ const StudentsPage = () => {
             <TableRow>
               <TableHead>RA</TableHead>
               <TableHead>Nome Completo</TableHead>
+              <TableHead>Tipo</TableHead>
               <TableHead>Turma</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -197,7 +222,18 @@ const StudentsPage = () => {
                 <TableRow key={student.id}>
                   <TableCell>{student.registration}</TableCell>
                   <TableCell className="font-medium">{student.name}</TableCell>
+                  <TableCell>{student.type || 'N/A'}</TableCell>
                   <TableCell>{student.class}</TableCell>
+                  <TableCell>
+                    {student.isBlocked ? (
+                      <Badge variant="destructive" className="flex items-center w-fit">
+                        <Lock className="h-3 w-3 mr-1" />
+                        Bloqueado
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">Ativo</Badge>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" onClick={() => openEditDialog(student)}>
                       <Edit className="h-4 w-4" />
@@ -228,7 +264,7 @@ const StudentsPage = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={4} className="text-center h-24">
+                <TableCell colSpan={6} className="text-center h-24">
                   Nenhum aluno encontrado.
                 </TableCell>
               </TableRow>

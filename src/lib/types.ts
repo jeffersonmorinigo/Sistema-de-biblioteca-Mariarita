@@ -16,6 +16,9 @@ export interface Student {
   registration: string; // RA
   name: string;         // Nome Completo
   class: string;        // Turma
+  type: string;         // Tipo de aluno (ex: Aluno, Professor, Funcionário)
+  isBlocked: boolean;   // Status de bloqueio
+  blockDate?: string;   // Data do bloqueio (opcional)
 }
 
 export interface Loan {

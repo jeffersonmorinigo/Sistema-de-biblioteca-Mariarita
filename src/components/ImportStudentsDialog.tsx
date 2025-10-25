@@ -25,9 +25,31 @@ interface ImportStudentsDialogProps {
 
 // Helper function to validate and process a single student object from JSON
 const processJsonStudent = (data: any, index: number, seenRegistrations: Set<string>): Student | null => {
-  const registration = String(data.registration || '').trim();
+  const registration = String(data.registration || data.RA || '').trim();
   const name = String(data.name || '').trim().toUpperCase();
-  const studentClass = String(data.class || '').trim().toUpperCase();
+  const studentClass = String(data.class || data.Turma || '').trim().toUpperCase();
+  const type = String(data.type || data.Tipo || 'ALUNO').trim().toUpperCase();
+  
+  // Handle boolean/string conversion for isBlocked
+  const isBlockedRaw = data.isBlocked || data.Bloqueado;
+  const isBlocked = isBlockedRaw === true || String(isBlockedRaw).toUpperCase() === 'TRUE' || String(isBlockedRaw).toUpperCase() === 'SIM' || String(isBlockedRaw) === '1';
+  
+  // Handle blockDate
+  let blockDate: string | undefined = undefined;
+  if (isBlocked) {
+    const dateRaw = data.blockDate || data.Data_bloqueio;
+    if (dateRaw && dateRaw !== 'N/A') {
+      // Attempt to parse date string, otherwise use current date
+      try {
+        blockDate = new Date(dateRaw).toISOString();
+      } catch {
+        blockDate = new Date().toISOString();
+      }
+    } else {
+      blockDate = new Date().toISOString();
+    }
+  }
+
 
   if (!registration || !name || !studentClass) {
     console.warn(`Skipping JSON entry ${index + 1}: Missing required fields (registration, name, class).`);
@@ -45,17 +67,21 @@ const processJsonStudent = (data: any, index: number, seenRegistrations: Set<str
     registration,
     name,
     class: studentClass,
+    type,
+    isBlocked,
+    blockDate,
   };
 };
 
 
 // Helper function to process a single row from CSV/XLSX
 const processRow = (row: any[], index: number, seenRegistrations: Set<string>): Student | null => {
-  // Expected columns: RA;Nome Completo;Turma
-  const [registration, name, studentClass] = row.map(cell => String(cell || '').trim());
+  // Expected columns: RA;Nome Completo;Tipo;Turma;Bloqueado;Data_bloqueio
+  // Note: The user provided '0' for RA, so we use index 0.
+  const [registration, name, type, studentClass, blockedRaw, blockDateRaw] = row.map(cell => String(cell || '').trim());
 
   if (!registration || !name || !studentClass) {
-    console.warn(`Skipping row ${index + 1}: Missing required fields.`);
+    console.warn(`Skipping row ${index + 1}: Missing required fields (RA, Nome, Turma).`);
     return null;
   }
   
@@ -65,11 +91,35 @@ const processRow = (row: any[], index: number, seenRegistrations: Set<string>): 
   }
   seenRegistrations.add(registration);
 
+  const upperName = name.toUpperCase();
+  const upperClass = studentClass.toUpperCase();
+  const upperType = (type || 'ALUNO').toUpperCase();
+  
+  // Determine block status
+  const isBlocked = blockedRaw.toUpperCase() === 'TRUE' || blockedRaw.toUpperCase() === 'SIM' || blockedRaw === '1';
+  
+  let blockDate: string | undefined = undefined;
+  if (isBlocked) {
+    if (blockDateRaw) {
+      // Attempt to parse date string, otherwise use current date
+      try {
+        blockDate = new Date(blockDateRaw).toISOString();
+      } catch {
+        blockDate = new Date().toISOString();
+      }
+    } else {
+      blockDate = new Date().toISOString();
+    }
+  }
+
   return {
     id: generateId(),
     registration,
-    name: name.toUpperCase(),
-    class: studentClass.toUpperCase(),
+    name: upperName,
+    class: upperClass,
+    type: upperType,
+    isBlocked,
+    blockDate,
   };
 };
 
@@ -269,9 +319,9 @@ const ImportStudentsDialog = ({ onImport, closeDialog }: ImportStudentsDialogPro
             <AlertDescription>
               <ul className="list-disc list-inside text-sm space-y-1 mt-2">
                 <li>O arquivo pode ser <strong>.txt, .csv, .xlsx, .xls ou .json</strong>.</li>
-                <li>Para <strong>JSON</strong>, o formato deve ser um array de objetos de alunos (ex: <code className="font-mono bg-muted p-1 rounded text-xs">[{'{'} "registration": "12345", "name": "...", "class": "..." {'}'}]</code>).</li>
+                <li>Para <strong>JSON</strong>, o formato deve ser um array de objetos de alunos (ex: <code className="font-mono bg-muted p-1 rounded text-xs">[{'{'} "registration": "12345", "name": "...", "type": "ALUNO", "isBlocked": false {'}'}]</code>).</li>
                 <li>Para <strong>CSV/XLSX</strong>, a ordem das colunas deve ser: <br />
-                  <code className="font-mono bg-muted p-1 rounded text-xs">RA;Nome Completo;Turma</code>
+                  <code className="font-mono bg-muted p-1 rounded text-xs">RA;Nome Completo;Tipo;Turma;Bloqueado (SIM/NÃO);Data_bloqueio (Opcional)</code>
                 </li>
               </ul>
             </AlertDescription>
