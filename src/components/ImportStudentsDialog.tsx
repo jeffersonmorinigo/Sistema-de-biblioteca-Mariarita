@@ -36,22 +36,25 @@ const findCaseInsensitiveKey = (obj: any, possibleKeys: string[]): string | unde
 
 // Helper function to validate and process a single student object from JSON
 const processJsonStudent = (data: any, index: number, seenRegistrations: Set<string>): Student | null => {
-  const regKey = findCaseInsensitiveKey(data, ['registration', 'RA']);
+  // Added 'ID' as a possible key for registration
+  const regKey = findCaseInsensitiveKey(data, ['registration', 'RA', 'ID']);
   const registration = String(regKey ? data[regKey] : '').trim();
 
   const nameKey = findCaseInsensitiveKey(data, ['name', 'nome']);
   const name = String(nameKey ? data[nameKey] : '').trim().toUpperCase();
 
-  const classKey = findCaseInsensitiveKey(data, ['class', 'turma']);
+  // Added 'Turma(FK)' as a possible key for class
+  const classKey = findCaseInsensitiveKey(data, ['class', 'turma', 'Turma(FK)']);
   const studentClass = String(classKey ? data[classKey] : '').trim().toUpperCase();
 
   const typeKey = findCaseInsensitiveKey(data, ['type', 'tipo']);
   const type = String(typeKey ? data[typeKey] : 'ALUNO').trim().toUpperCase();
   
-  const isBlockedKey = findCaseInsensitiveKey(data, ['isBlocked', 'bloqueado']);
-  const isBlockedRaw = isBlockedKey ? data[isBlockedKey] : false;
+  // Handle boolean/string conversion for isBlocked
+  const isBlockedRaw = data.isBlocked || data.Bloqueado;
   const isBlocked = isBlockedRaw === true || String(isBlockedRaw).toUpperCase() === 'TRUE' || String(isBlockedRaw).toUpperCase() === 'SIM' || String(isBlockedRaw) === '1';
   
+  // Handle blockDate
   let blockDate: string | undefined = undefined;
   if (isBlocked) {
     const blockDateKey = findCaseInsensitiveKey(data, ['blockDate', 'data_bloqueio']);
@@ -377,7 +380,7 @@ const ImportStudentsDialog = ({ onImport, closeDialog }: ImportStudentsDialogPro
             <AlertDescription>
               <ul className="list-disc list-inside text-sm space-y-1 mt-2">
                 <li>O arquivo pode ser <strong>.txt, .csv, .xlsx, .xls ou .json</strong>.</li>
-                <li>Para <strong>JSON</strong>, o formato deve ser um array de objetos de alunos. As chaves dos campos (ex: "registration", "name", "class") são flexíveis em maiúsculas/minúsculas e aceitam alternativas (ex: "RA" para "registration", "Nome" para "name", "Turma" para "class", "Bloqueado" para "isBlocked", "Data_bloqueio" para "blockDate").</li>
+                <li>Para <strong>JSON</strong>, o formato deve ser um array de objetos de alunos. As chaves dos campos (ex: "registration", "name", "class") são flexíveis em maiúsculas/minúsculas e aceitam alternativas (ex: "RA" ou "ID" para "registration", "Nome" para "name", "Turma" ou "Turma(FK)" para "class", "Bloqueado" para "isBlocked", "Data_bloqueio" para "blockDate").</li>
                 <li>Para <strong>CSV/XLSX</strong>, o sistema tentará identificar as colunas pelos cabeçalhos. Use os seguintes nomes (sem acentos): <br />
                   <code className="font-mono bg-muted p-1 rounded text-xs">RA;NOME COMPLETO;TIPO;TURMA;BLOQUEADO;DATA_BLOQUEIO</code>
                 </li>
