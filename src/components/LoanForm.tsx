@@ -68,9 +68,9 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
         <DialogTitle>Registrar Novo Empréstimo</DialogTitle>
       </DialogHeader>
       <form onSubmit={handleSubmit(handleFormSubmit)}>
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-6 py-4">
           <div className="space-y-2">
-            <Label htmlFor="studentId">Aluno</Label>
+            <Label htmlFor="studentId" className="mb-1">Aluno</Label>
             <Controller
               name="studentId"
               control={control}
@@ -88,7 +88,7 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
             {errors.studentId && <p className="text-red-500 text-sm">{errors.studentId.message}</p>}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="bookCode">Livro (Disponíveis)</Label>
+            <Label htmlFor="bookCode" className="mb-1">Livro (Disponíveis)</Label>
             <Controller
               name="bookCode"
               control={control}
@@ -106,7 +106,7 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
             {errors.bookCode && <p className="text-red-500 text-sm">{errors.bookCode.message}</p>}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="expectedReturnDate">Data Prevista de Devolução</Label>
+            <Label htmlFor="expectedReturnDate" className="mb-1">Data Prevista de Devolução</Label>
             <Controller
               name="expectedReturnDate"
               control={control}
