@@ -9,6 +9,8 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
+    title: 'Sistema de Biblioteca', // Define o título da janela
+    autoHideMenuBar: true, // Oculta a barra de menu
     webPreferences: {
       // Desabilita a integração de node no renderizador por segurança,
       // a menos que você realmente precise dela e saiba os riscos.
