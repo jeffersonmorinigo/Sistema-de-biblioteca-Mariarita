@@ -36,12 +36,12 @@ const processJsonBook = (data: any, index: number, seenCodes: Set<string>): Book
   const quantity = Number(data.quantity);
 
   if (!code || !title || !author || !publisher || !bookType) {
-    console.warn(`Skipping JSON entry ${index + 1}: Missing required fields (code, title, author, publisher, bookType).`);
+    console.warn(`Pulando entrada JSON ${index + 1}: Campos obrigatórios ausentes (código, título, autor, editora, tipo).`);
     return null;
   }
 
   if (seenCodes.has(code)) {
-    console.warn(`Skipping duplicate code in JSON entry ${index + 1}: ${code}`);
+    console.warn(`Pulando código duplicado na entrada JSON ${index + 1}: ${code}`);
     return null;
   }
   seenCodes.add(code);
@@ -67,14 +67,14 @@ const processRow = (row: any[], index: number, seenCodes: Set<string>): Book | n
   const [code, title, author, category, publisher, bookType, isbn, quantityRaw] = row.map(cell => String(cell || '').trim());
 
   if (!code) {
-    console.warn(`Skipping row ${index + 1}: Code is missing.`);
+    console.warn(`Pulando linha ${index + 1}: Código ausente.`);
     return null;
   }
   
   const upperCode = code.toUpperCase();
 
   if (seenCodes.has(upperCode)) {
-      console.warn(`Skipping duplicate code in row ${index + 1}: ${upperCode}`);
+      console.warn(`Pulando código duplicado na linha ${index + 1}: ${upperCode}`);
       return null;
   }
   seenCodes.add(upperCode);
@@ -197,7 +197,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
 
     reader.onerror = () => {
       showError('Ocorreu um erro ao ler o arquivo.');
-      console.error('FileReader error:', reader.error);
+      console.error('Erro do FileReader:', reader.error);
       setIsProcessing(false);
     };
 
@@ -230,7 +230,11 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
           const content = fileResult as string;
           // Try to detect delimiter: comma, semicolon, or tab
           const delimiter = content.includes(';') ? ';' : (content.includes(',') ? ',' : '\t');
-          dataToProcess = content.split(/\r?\n/).map(line => line.split(delimiter));
+          const workbook = XLSX.read(content, { type: 'binary', raw: true, FS: delimiter });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          
+          dataToProcess = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: false });
         } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
           const data = new Uint8Array(fileResult as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
@@ -264,7 +268,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
 
       } catch (error) {
         showError('Ocorreu um erro crítico ao processar o arquivo. Verifique o formato das colunas/campos ou se o arquivo está corrompido.');
-        console.error('Critical import error:', error);
+        console.error('Erro crítico de importação:', error);
       } finally {
         setIsProcessing(false);
         setProgress(100);

@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const deleteUser = (userId: string) => {
     // Prevent deleting the last user
     if (users.length <= 1) {
-      console.error("Cannot delete the last user.");
+      console.error("Não é possível excluir o último usuário.");
       return;
     }
     setUsers(prevUsers => prevUsers.filter(user => user.id !== userId));
@@ -70,7 +70,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuth deve ser usado dentro de um AuthProvider');
   }
   return context;
 };

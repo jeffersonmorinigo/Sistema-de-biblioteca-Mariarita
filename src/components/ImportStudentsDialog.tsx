@@ -72,12 +72,12 @@ const processJsonStudent = (data: any, index: number, seenRegistrations: Set<str
   }
 
   if (!registration || !name || !studentClass) {
-    console.warn(`Skipping JSON entry ${index + 1}: Missing required fields (registration, name, class). Data: ${JSON.stringify(data)}`);
+    console.warn(`Pulando entrada JSON ${index + 1}: Campos obrigatórios ausentes (RA, nome, turma). Dados: ${JSON.stringify(data)}`);
     return null;
   }
 
   if (seenRegistrations.has(registration)) {
-    console.warn(`Skipping duplicate registration in JSON entry ${index + 1}: ${registration}. Data: ${JSON.stringify(data)}`);
+    console.warn(`Pulando RA duplicado na entrada JSON ${index + 1}: ${registration}. Dados: ${JSON.stringify(data)}`);
     return null;
   }
   seenRegistrations.add(registration);
@@ -112,12 +112,12 @@ const processRow = (row: any[], index: number, seenRegistrations: Set<string>, h
 
 
   if (!registration || !name || !studentClass) {
-    console.warn(`Skipping row ${index + 1}: Missing required fields (RA, Nome, Turma).`);
+    console.warn(`Pulando linha ${index + 1}: Campos obrigatórios ausentes (RA, Nome, Turma).`);
     return null;
   }
   
   if (seenRegistrations.has(registration)) {
-      console.warn(`Skipping duplicate registration in row ${index + 1}: ${registration}`);
+      console.warn(`Pulando RA duplicado na linha ${index + 1}: ${registration}`);
       return null;
   }
   seenRegistrations.add(registration);
@@ -270,7 +270,7 @@ const ImportStudentsDialog = ({ onImport, closeDialog }: ImportStudentsDialogPro
 
     reader.onerror = () => {
       showError('Ocorreu um erro ao ler o arquivo.');
-      console.error('FileReader error:', reader.error);
+      console.error('Erro do FileReader:', reader.error);
       setIsProcessing(false);
     };
 
@@ -344,7 +344,7 @@ const ImportStudentsDialog = ({ onImport, closeDialog }: ImportStudentsDialogPro
 
       } catch (error) {
         showError('Ocorreu um erro crítico ao processar o arquivo. Verifique o formato das colunas/campos ou se o arquivo está corrompido.');
-        console.error('Critical import error:', error);
+        console.error('Erro crítico de importação:', error);
       } finally {
         setIsProcessing(false);
         setProgress(100);
@@ -380,7 +380,7 @@ const ImportStudentsDialog = ({ onImport, closeDialog }: ImportStudentsDialogPro
             <AlertDescription>
               <ul className="list-disc list-inside text-sm space-y-1 mt-2">
                 <li>O arquivo pode ser <strong>.txt, .csv, .xlsx, .xls ou .json</strong>.</li>
-                <li>Para <strong>JSON</strong>, o formato deve ser um array de objetos de alunos. As chaves dos campos (ex: "registration", "name", "class") são flexíveis em maiúsculas/minúsculas e aceitam alternativas (ex: "RA" ou "ID" para "registration", "Nome" para "name", "Turma" ou "Turma(FK)" para "class", "Bloqueado" para "isBlocked", "Data_bloqueio" para "blockDate").</li>
+                <li>Para <strong>JSON</strong>, o formato deve ser um array de objetos de alunos (ex: <code className="font-mono bg-muted p-1 rounded text-xs">[{'{'} "registration": "12345", "name": "...", "type": "ALUNO", "isBlocked": false {'}'}]</code>).</li>
                 <li>Para <strong>CSV/XLSX</strong>, o sistema tentará identificar as colunas pelos cabeçalhos. Use os seguintes nomes (sem acentos): <br />
                   <code className="font-mono bg-muted p-1 rounded text-xs">RA;NOME COMPLETO;TIPO;TURMA;BLOQUEADO;DATA_BLOQUEIO</code>
                 </li>
