@@ -5,6 +5,7 @@ import path from "path";
 
 // Defining the configuration for the Vite build tool.
 export default defineConfig(() => ({
+  base: './', // Adicionado para compatibilidade com Electron
   server: {
     host: "::",
     port: 8080,
