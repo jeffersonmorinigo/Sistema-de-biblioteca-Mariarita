@@ -23,21 +23,39 @@ interface ImportStudentsDialogProps {
   closeDialog: () => void;
 }
 
+// Helper function to find a key in an object in a case-insensitive manner,
+// and also check for possible alternative key names.
+const findCaseInsensitiveKey = (obj: any, possibleKeys: string[]): string | undefined => {
+  const objKeys = Object.keys(obj);
+  for (const pk of possibleKeys) {
+    const foundKey = objKeys.find(ok => ok.toLowerCase() === pk.toLowerCase());
+    if (foundKey) return foundKey;
+  }
+  return undefined;
+};
+
 // Helper function to validate and process a single student object from JSON
 const processJsonStudent = (data: any, index: number, seenRegistrations: Set<string>): Student | null => {
-  const registration = String(data.registration || data.RA || '').trim();
-  const name = String(data.name || '').trim().toUpperCase();
-  const studentClass = String(data.class || data.Turma || '').trim().toUpperCase();
-  const type = String(data.type || data.Tipo || 'ALUNO').trim().toUpperCase();
+  const regKey = findCaseInsensitiveKey(data, ['registration', 'RA']);
+  const registration = String(regKey ? data[regKey] : '').trim();
+
+  const nameKey = findCaseInsensitiveKey(data, ['name', 'nome']);
+  const name = String(nameKey ? data[nameKey] : '').trim().toUpperCase();
+
+  const classKey = findCaseInsensitiveKey(data, ['class', 'turma']);
+  const studentClass = String(classKey ? data[classKey] : '').trim().toUpperCase();
+
+  const typeKey = findCaseInsensitiveKey(data, ['type', 'tipo']);
+  const type = String(typeKey ? data[typeKey] : 'ALUNO').trim().toUpperCase();
   
-  // Handle boolean/string conversion for isBlocked
-  const isBlockedRaw = data.isBlocked || data.Bloqueado;
+  const isBlockedKey = findCaseInsensitiveKey(data, ['isBlocked', 'bloqueado']);
+  const isBlockedRaw = isBlockedKey ? data[isBlockedKey] : false;
   const isBlocked = isBlockedRaw === true || String(isBlockedRaw).toUpperCase() === 'TRUE' || String(isBlockedRaw).toUpperCase() === 'SIM' || String(isBlockedRaw) === '1';
   
-  // Handle blockDate
   let blockDate: string | undefined = undefined;
   if (isBlocked) {
-    const dateRaw = data.blockDate || data.Data_bloqueio;
+    const blockDateKey = findCaseInsensitiveKey(data, ['blockDate', 'data_bloqueio']);
+    const dateRaw = blockDateKey ? data[blockDateKey] : undefined;
     if (dateRaw && dateRaw !== 'N/A') {
       // Attempt to parse date string, otherwise use current date
       try {
@@ -50,14 +68,13 @@ const processJsonStudent = (data: any, index: number, seenRegistrations: Set<str
     }
   }
 
-
   if (!registration || !name || !studentClass) {
-    console.warn(`Skipping JSON entry ${index + 1}: Missing required fields (registration, name, class).`);
+    console.warn(`Skipping JSON entry ${index + 1}: Missing required fields (registration, name, class). Data: ${JSON.stringify(data)}`);
     return null;
   }
 
   if (seenRegistrations.has(registration)) {
-    console.warn(`Skipping duplicate registration in JSON entry ${index + 1}: ${registration}`);
+    console.warn(`Skipping duplicate registration in JSON entry ${index + 1}: ${registration}. Data: ${JSON.stringify(data)}`);
     return null;
   }
   seenRegistrations.add(registration);
@@ -360,7 +377,7 @@ const ImportStudentsDialog = ({ onImport, closeDialog }: ImportStudentsDialogPro
             <AlertDescription>
               <ul className="list-disc list-inside text-sm space-y-1 mt-2">
                 <li>O arquivo pode ser <strong>.txt, .csv, .xlsx, .xls ou .json</strong>.</li>
-                <li>Para <strong>JSON</strong>, o formato deve ser um array de objetos de alunos (ex: <code className="font-mono bg-muted p-1 rounded text-xs">[{'{'} "registration": "12345", "name": "...", "type": "ALUNO", "isBlocked": false {'}'}]</code>).</li>
+                <li>Para <strong>JSON</strong>, o formato deve ser um array de objetos de alunos. As chaves dos campos (ex: "registration", "name", "class") são flexíveis em maiúsculas/minúsculas e aceitam alternativas (ex: "RA" para "registration", "Nome" para "name", "Turma" para "class", "Bloqueado" para "isBlocked", "Data_bloqueio" para "blockDate").</li>
                 <li>Para <strong>CSV/XLSX</strong>, o sistema tentará identificar as colunas pelos cabeçalhos. Use os seguintes nomes (sem acentos): <br />
                   <code className="font-mono bg-muted p-1 rounded text-xs">RA;NOME COMPLETO;TIPO;TURMA;BLOQUEADO;DATA_BLOQUEIO</code>
                 </li>
