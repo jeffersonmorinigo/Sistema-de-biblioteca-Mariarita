@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron'); // Adicionado ipcMain
 const path = require('path');
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -16,8 +16,7 @@ function createWindow() {
       // a menos que você realmente precise dela e saiba os riscos.
       nodeIntegration: false,
       contextIsolation: true,
-      // Você pode adicionar um preload script aqui se precisar de comunicação IPC segura
-      // preload: path.join(__dirname, 'preload.js'), 
+      preload: path.join(__dirname, 'electron', 'preload.js'), // Adicionado o script preload
     },
   });
 
@@ -44,6 +43,11 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+});
+
+// Ouve o evento 'quit-app' do processo de renderização para fechar o aplicativo
+ipcMain.on('quit-app', () => {
+  app.quit();
 });
 
 // Sai quando todas as janelas são fechadas, exceto no macOS.

@@ -21,7 +21,13 @@ const Sidebar = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    // Se estiver no ambiente Electron, fechar o aplicativo
+    if (window.electron && window.electron.quitApp) {
+      window.electron.quitApp();
+    } else {
+      // Caso contrário (ambiente web), navegar para a página de login
+      navigate('/login');
+    }
   };
 
   return (
