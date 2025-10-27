@@ -58,7 +58,8 @@ const BooksPage = () => {
       book.title.toLowerCase().includes(lowerCaseSearchTerm) ||
       book.author.toLowerCase().includes(lowerCaseSearchTerm) ||
       book.code.toLowerCase().includes(lowerCaseSearchTerm) ||
-      book.isbn.toLowerCase().includes(lowerCaseSearchTerm)
+      book.isbn.toLowerCase().includes(lowerCaseSearchTerm) ||
+      book.shelf.toLowerCase().includes(lowerCaseSearchTerm) // Incluir busca por prateleira
     );
   }, [books, searchTerm]);
 
@@ -133,7 +134,7 @@ const BooksPage = () => {
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
-            placeholder="Buscar por título, autor, código..."
+            placeholder="Buscar por título, autor, código, prateleira..."
             className="pl-10"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -180,6 +181,7 @@ const BooksPage = () => {
               <TableHead>Editora</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>ISBN</TableHead>
+              <TableHead>Prateleira</TableHead> {/* Adicionada a coluna Prateleira */}
               <TableHead>Disponível</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
@@ -197,6 +199,7 @@ const BooksPage = () => {
                     <TableCell>{book.publisher}</TableCell>
                     <TableCell>{book.bookType}</TableCell>
                     <TableCell>{book.isbn}</TableCell>
+                    <TableCell>{book.shelf || 'N/A'}</TableCell> {/* Exibir o valor da prateleira */}
                     <TableCell className="font-semibold">{available}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" onClick={() => openEditDialog(book)}>
@@ -229,7 +232,7 @@ const BooksPage = () => {
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={8} className="text-center h-24">
+                <TableCell colSpan={9} className="text-center h-24"> {/* Ajustado o colspan */}
                   Nenhum livro encontrado.
                 </TableCell>
               </TableRow>
