@@ -52,7 +52,8 @@ const LoansPage = () => {
       const lowercasedFilter = searchTerm.toLowerCase();
       const studentName = studentMap.get(loan.studentId)?.name.toLowerCase() || '';
       const bookTitle = bookMap.get(loan.bookCode)?.title.toLowerCase() || '';
-      return studentName.includes(lowercasedFilter) || bookTitle.includes(lowercasedFilter);
+      const bookShelf = bookMap.get(loan.bookCode)?.shelf.toLowerCase() || '';
+      return studentName.includes(lowercasedFilter) || bookTitle.includes(lowercasedFilter) || bookShelf.includes(lowercasedFilter);
     });
 
     return filtered.sort((a, b) => {
@@ -147,6 +148,7 @@ const LoansPage = () => {
                   <th>Aluno</th>
                   <th>RA</th>
                   <th>Livro</th>
+                  <th>Prateleira</th>
                   <th>Data de Devolução Prevista</th>
                 </tr>
               </thead>
@@ -159,6 +161,7 @@ const LoansPage = () => {
                       <td>${student?.name || 'N/A'}</td>
                       <td>${student?.registration || 'N/A'}</td>
                       <td>${book?.title || 'N/A'}</td>
+                      <td>${book?.shelf || 'N/A'}</td>
                       <td>${format(new Date(loan.expectedReturnDate), 'dd/MM/yyyy', { locale: ptBR })}</td>
                     </tr>
                   `;
@@ -181,7 +184,7 @@ const LoansPage = () => {
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
-            placeholder="Buscar por aluno ou livro..."
+            placeholder="Buscar por aluno, livro ou prateleira..."
             className="pl-10"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -214,6 +217,7 @@ const LoansPage = () => {
             <TableRow>
               <TableHead>Aluno</TableHead>
               <TableHead>Livro</TableHead>
+              <TableHead>Prateleira</TableHead> {/* Nova coluna */}
               <TableHead>Data do Empréstimo</TableHead>
               <TableHead>Data de Devolução</TableHead>
               <TableHead>Status</TableHead>
@@ -224,10 +228,12 @@ const LoansPage = () => {
             {filteredAndSortedLoans.length > 0 ? (
               filteredAndSortedLoans.map(loan => {
                 const isOverdue = !loan.returnDate && isAfter(new Date(), new Date(loan.expectedReturnDate));
+                const book = bookMap.get(loan.bookCode); // Obter o livro para acessar a prateleira
                 return (
                   <TableRow key={loan.id} className={cn(isOverdue && 'bg-red-100 dark:bg-red-900/20')}>
                     <TableCell className="font-medium">{studentMap.get(loan.studentId)?.name || 'Aluno não encontrado'}</TableCell>
-                    <TableCell>{bookMap.get(loan.bookCode)?.title || 'Livro não encontrado'}</TableCell>
+                    <TableCell>{book?.title || 'Livro não encontrado'}</TableCell>
+                    <TableCell>{book?.shelf || 'N/A'}</TableCell> {/* Exibir prateleira */}
                     <TableCell>{format(new Date(loan.loanDate), 'dd/MM/yyyy', { locale: ptBR })}</TableCell>
                     <TableCell>{format(new Date(loan.expectedReturnDate), 'dd/MM/yyyy', { locale: ptBR })}</TableCell>
                     <TableCell>
@@ -273,7 +279,7 @@ const LoansPage = () => {
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center h-24">
+                <TableCell colSpan={7} className="text-center h-24">
                   {searchTerm ? "Nenhum empréstimo encontrado." : "Nenhum empréstimo registrado."}
                 </TableCell>
               </TableRow>

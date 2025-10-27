@@ -125,6 +125,11 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
             {errors.isbn && <p className="col-span-4 text-red-500 text-sm text-right">{errors.isbn.message}</p>}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="shelf" className="text-right">Prateleira</Label>
+            <Input id="shelf" {...register('shelf')} className="col-span-3 uppercase" placeholder="Ex: A1, B2" />
+            {errors.shelf && <p className="col-span-4 text-red-500 text-sm text-right">{errors.shelf.message}</p>}
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="quantity" className="text-right">Quantidade</Label>
             <Input id="quantity" type="number" {...register('quantity')} className="col-span-3" />
             {errors.quantity && <p className="col-span-4 text-red-500 text-sm text-right">{errors.quantity.message}</p>}

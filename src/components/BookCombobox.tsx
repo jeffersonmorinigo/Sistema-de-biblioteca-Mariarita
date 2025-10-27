@@ -55,7 +55,7 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
   const selectedBookTitle = useMemo(() => {
     if (!value) return "Selecione um livro disponível...";
     const book = books.find(b => b.code === value);
-    return book ? book.title : "Selecione um livro disponível...";
+    return book ? `${book.title} (Prateleira: ${book.shelf || 'N/A'})` : "Selecione um livro disponível...";
   }, [value, books]);
 
   return (
@@ -80,7 +80,7 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
               {availableBooks.map((book) => (
                 <CommandItem
                   key={book.id}
-                  value={`${book.title} ${book.author}`}
+                  value={`${book.title} ${book.author} ${book.shelf}`}
                   onSelect={() => {
                     onChange(book.code)
                     setOpen(false)
@@ -94,7 +94,7 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
                   />
                   <div className="flex-1">
                     <p>{book.title}</p>
-                    <p className="text-xs text-muted-foreground">Autor: {book.author}</p>
+                    <p className="text-xs text-muted-foreground">Autor: {book.author} | Prateleira: {book.shelf || 'N/A'}</p>
                   </div>
                   <span className="text-xs bg-secondary text-secondary-foreground rounded-full px-2 py-0.5">
                     {book.availableCount} {book.availableCount === 1 ? 'disp.' : 'disps.'}
