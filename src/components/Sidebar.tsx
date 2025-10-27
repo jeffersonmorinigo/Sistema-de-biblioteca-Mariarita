@@ -1,9 +1,11 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Book, Users, ArrowLeftRight, DatabaseBackup, LogOut, Library, UserCog, Settings } from 'lucide-react';
+import { Book, Users, ArrowLeftRight, DatabaseBackup, LogOut, Library, UserCog, Settings, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/auth/AuthContext';
 import { cn } from '@/lib/utils';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useAutoBackup } from '@/hooks/useAutoBackup';
+import { useState } from 'react';
 
 const navItems = [
   { href: '/loans', icon: ArrowLeftRight, label: 'Empréstimos' },
@@ -18,8 +20,21 @@ const Sidebar = () => {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const [schoolName] = useLocalStorage('schoolName', '');
+  const { triggerJsonBackup } = useAutoBackup();
+  const [isBackingUp, setIsBackingUp] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    setIsBackingUp(true);
+
+    try {
+      await triggerJsonBackup();
+    } catch (error) {
+      console.error("Erro durante o backup automático:", error);
+      // Continua com o logout mesmo se o backup falhar, mas registra o erro
+    } finally {
+      setIsBackingUp(false);
+    }
+
     logout();
     // Se estiver no ambiente Electron, fechar o aplicativo
     if (window.electron && window.electron.quitApp) {
@@ -63,9 +78,13 @@ const Sidebar = () => {
           ))}
         </ul>
       </nav>
-      <Button variant="ghost" onClick={handleLogout} className="w-full justify-start">
-        <LogOut className="w-5 h-5 mr-3" />
-        Sair
+      <Button variant="ghost" onClick={handleLogout} className="w-full justify-start" disabled={isBackingUp}>
+        {isBackingUp ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : (
+          <LogOut className="w-5 h-5 mr-3" />
+        )}
+        {isBackingUp ? 'Fazendo backup...' : 'Sair'}
       </Button>
     </aside>
   );
