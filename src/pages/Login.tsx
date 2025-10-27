@@ -41,7 +41,7 @@ const LoginPage = () => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="admin@biblioteca.com"
+                  // placeholder="admin@biblioteca.com" // Removido o placeholder
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
