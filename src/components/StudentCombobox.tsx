@@ -29,6 +29,12 @@ interface StudentComboboxProps {
 export function StudentCombobox({ students, value, onChange }: StudentComboboxProps) {
   const [open, setOpen] = React.useState(false)
 
+  const selectedStudentDisplay = React.useMemo(() => {
+    if (!value) return "Selecione ou busque um aluno...";
+    const student = students.find((s) => s.id === value);
+    return student ? `${student.name} (RA: ${student.registration})` : "Selecione ou busque um aluno...";
+  }, [value, students]);
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -38,9 +44,7 @@ export function StudentCombobox({ students, value, onChange }: StudentComboboxPr
           aria-expanded={open}
           className="w-full justify-between"
         >
-          {value
-            ? students.find((student) => student.id === value)?.name
-            : "Selecione ou busque um aluno..."}
+          <span className="truncate">{selectedStudentDisplay}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
