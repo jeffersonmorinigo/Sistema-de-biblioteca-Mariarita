@@ -1,5 +1,4 @@
 import { format } from 'date-fns';
-import { showSuccess, showError } from '@/utils/toast';
 
 const LOCAL_STORAGE_KEYS = [
   'books', 'students', 'loans', 'users', 
@@ -25,6 +24,7 @@ const getAllData = () => {
 /**
  * Gera e força o download de um arquivo de backup JSON.
  * @param prefix Prefixo do nome do arquivo (ex: 'backup_inicial', 'backup_manual')
+ * @returns true se o download foi iniciado, false em caso de erro.
  */
 export const generateAndDownloadJsonBackup = (prefix: string) => {
   try {
@@ -43,7 +43,6 @@ export const generateAndDownloadJsonBackup = (prefix: string) => {
     return true;
   } catch (error) {
     console.error('Erro ao gerar backup JSON:', error);
-    showError('Ocorreu um erro ao gerar o backup JSON.');
     return false;
   }
 };

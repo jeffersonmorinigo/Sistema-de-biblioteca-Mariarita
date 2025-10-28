@@ -10,7 +10,7 @@ import SettingsPage from './pages/app/Settings';
 import BackupPage from './pages/app/Backup';
 import NotFound from './pages/NotFound';
 import { Toaster } from '@/components/ui/sonner';
-import { useInitialBackup } from '@/hooks/useInitialBackup'; // Importando o novo hook
+import InitialBackupNotification from '@/components/InitialBackupNotification'; // Importando o novo componente
 
 // A simple component to redirect based on auth status
 const HomeRedirect = () => {
@@ -19,8 +19,7 @@ const HomeRedirect = () => {
 };
 
 const AppRoutes = () => {
-  // Chama o hook de backup inicial. Ele só será executado no ambiente Electron.
-  useInitialBackup(); 
+  // O hook useInitialBackup foi substituído pelo componente InitialBackupNotification
   
   return (
     <Router>
@@ -40,6 +39,8 @@ const AppRoutes = () => {
         <Route path="/" element={<HomeRedirect />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+      {/* Renderiza a notificação de backup após o login */}
+      <InitialBackupNotification /> 
     </Router>
   );
 };
