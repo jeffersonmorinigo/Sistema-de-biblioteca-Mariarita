@@ -17,6 +17,7 @@ import {
 import { Download, Upload, AlertTriangle, Database } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { format } from 'date-fns';
+import { generateAndDownloadJsonBackup } from '@/lib/backupUtils';
 
 const BackupPage = () => {
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
@@ -43,24 +44,8 @@ const BackupPage = () => {
   };
 
   const handleJsonBackup = () => {
-    try {
-      const backupData = getAllData();
-      const jsonString = JSON.stringify(backupData, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      const timestamp = format(new Date(), 'yyyy-MM-dd_HH-mm-ss');
-      link.href = url;
-      link.download = `backup_biblioteca_${timestamp}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      showSuccess('Backup JSON gerado e baixado com sucesso!');
-    } catch (error) {
-      console.error('Erro ao gerar backup JSON:', error);
-      showError('Ocorreu um erro ao gerar o backup JSON.');
-    }
+    generateAndDownloadJsonBackup('backup_manual');
+    showSuccess('Backup JSON gerado e baixado com sucesso!');
   };
 
   const escapeSql = (str: any) => {
