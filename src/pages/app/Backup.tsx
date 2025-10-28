@@ -23,7 +23,7 @@ const BackupPage = () => {
 
   const LOCAL_STORAGE_KEYS = [
     'books', 'students', 'loans', 'users', 
-    'schoolName', 'book_categories', 'student_classes', 'book_shelves', // New: Added book_shelves
+    'schoolName', 'book_categories', 'student_classes', 'book_shelves',
     'isAuthenticated'
   ];
 
@@ -87,9 +87,9 @@ const BackupPage = () => {
       };
 
       sqlString += generateTableSql('users', ['id', 'name', 'email', 'password'], data.users);
-      sqlString += generateTableSql('students', ['id', 'registration', 'name', 'class'], data.students);
-      sqlString += generateTableSql('books', ['id', 'code', 'isbn', 'title', 'author', 'publisher', 'shelf', 'category', 'status'], data.books);
-      sqlString += generateTableSql('loans', ['id', 'studentId', 'bookId', 'loanDate', 'expectedReturnDate', 'returnDate'], data.loans);
+      sqlString += generateTableSql('students', ['id', 'registration', 'name', 'class', 'type', 'isBlocked', 'blockDate'], data.students);
+      sqlString += generateTableSql('books', ['id', 'code', 'isbn', 'title', 'author', 'publisher', 'shelf', 'category', 'bookType', 'quantity'], data.books);
+      sqlString += generateTableSql('loans', ['id', 'studentId', 'bookCode', 'loanDate', 'expectedReturnDate', 'returnDate'], data.loans);
 
       // Handle settings
       sqlString += `DROP TABLE IF EXISTS settings;\n`;
@@ -103,7 +103,7 @@ const BackupPage = () => {
       if (data.student_classes) {
         sqlString += `INSERT INTO settings (key, value) VALUES ('student_classes', ${escapeSql(JSON.stringify(data.student_classes))});\n`;
       }
-      if (data.book_shelves) { // New: Add book_shelves to SQL backup
+      if (data.book_shelves) {
         sqlString += `INSERT INTO settings (key, value) VALUES ('book_shelves', ${escapeSql(JSON.stringify(data.book_shelves))});\n`;
       }
 
