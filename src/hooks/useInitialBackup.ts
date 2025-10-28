@@ -18,7 +18,7 @@ export function useInitialBackup() {
       const success = generateAndDownloadJsonBackup('backup_inicial');
       
       if (success) {
-        showSuccess('Backup inicial gerado com sucesso!');
+        showSuccess('Backup inicial gerado com sucesso! Verifique sua pasta de Downloads.');
         sessionStorage.setItem(SESSION_KEY, 'true');
       }
     }
