@@ -36,21 +36,11 @@ import { ptBR } from 'date-fns/locale';
 
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
-const defaultClasses = [
-  '1º ANO A', '1º ANO B', '1º ANO C',
-  '2º ANO A', '2º ANO B', '2º ANO C',
-  '3º ANO A', '3º ANO B', '3º ANO C',
-  '4º ANO A', '4º ANO B', '4º ANO C',
-  '5º ANO A', '5º ANO B', '5º ANO C',
-  '6º ANO A', '6º ANO B', '6º ANO C',
-  '7º ANO A', '7º ANO B', '7º ANO C',
-  '8º ANO A', '8º ANO B', '8º ANO C',
-  '9º ANO A', '9º ANO B', '9º ANO C',
-];
-
 const StudentsPage = () => {
   const [students, setStudents] = useLocalStorage<Student[]>('students', []);
-  const [classes, setClasses] = useLocalStorage<string[]>('student_classes', defaultClasses);
+  // Classes are now managed in SettingsPage, but StudentsPage still needs to read them
+  // and provide add/delete functionality for the StudentForm's ClassCombobox.
+  const [classes, setClasses] = useLocalStorage<string[]>('student_classes', []); 
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -124,13 +114,15 @@ const StudentsPage = () => {
     // Update classes list based on imported students
     const newClasses = new Set<string>();
     importedStudents.forEach(s => newClasses.add(s.class));
-    setClasses(Array.from(newClasses).sort());
+    setClasses(Array.from(newClasses).sort()); // Update classes in localStorage
 
     showSuccess(`${importedStudents.length} alunos foram importados. Os dados anteriores foram substituídos.`);
     
     return { processedCount: importedStudents.length };
   };
 
+  // These functions will now update the 'student_classes' in localStorage,
+  // which is also read by the SettingsPage.
   const handleAddClass = (newClass: string) => {
     if (!classes.includes(newClass)) {
       setClasses([...classes, newClass].sort());

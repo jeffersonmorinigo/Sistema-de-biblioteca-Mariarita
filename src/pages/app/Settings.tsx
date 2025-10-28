@@ -17,15 +17,30 @@ const settingsSchema = z.object({
 
 type SettingsFormData = z.infer<typeof settingsSchema>;
 
+// Default classes for initial setup if localStorage is empty
+const defaultClasses = [
+  '1º ANO A', '1º ANO B', '1º ANO C',
+  '2º ANO A', '2º ANO B', '2º ANO C',
+  '3º ANO A', '3º ANO B', '3º ANO C',
+  '4º ANO A', '4º ANO B', '4º ANO C',
+  '5º ANO A', '5º ANO B', '5º ANO C',
+  '6º ANO A', '6º ANO B', '6º ANO C',
+  '7º ANO A', '7º ANO B', '7º ANO C',
+  '8º ANO A', '8º ANO B', '8º ANO C',
+  '9º ANO A', '9º ANO B', '9º ANO C',
+];
+
 const SettingsPage = () => {
   const [schoolName, setSchoolName] = useLocalStorage('schoolName', '');
   const [categories, setCategories] = useLocalStorage<string[]>('book_categories', ['GERAL']);
-  const [shelves, setShelves] = useLocalStorage<string[]>('book_shelves', ['N/A']); // New: Shelves state
+  const [shelves, setShelves] = useLocalStorage<string[]>('book_shelves', ['N/A']);
+  const [classes, setClasses] = useLocalStorage<string[]>('student_classes', defaultClasses); // New: Classes state
   const [books] = useLocalStorage<Book[]>('books', []);
-  const [students] = useLocalStorage<Student[]>('students', []); // Needed to check if classes are in use
+  const [students] = useLocalStorage<Student[]>('students', []);
 
   const [newCategory, setNewCategory] = useState('');
-  const [newShelf, setNewShelf] = useState(''); // New: New shelf input state
+  const [newShelf, setNewShelf] = useState('');
+  const [newClass, setNewClass] = useState(''); // New: New class input state
 
   const {
     register,
@@ -67,7 +82,6 @@ const SettingsPage = () => {
     showSuccess(`Categoria "${categoryToDelete}" excluída!`);
   };
 
-  // New: Shelf management functions
   const handleAddShelf = () => {
     const formattedShelf = newShelf.trim().toUpperCase();
     if (!formattedShelf) {
@@ -92,10 +106,35 @@ const SettingsPage = () => {
     showSuccess(`Prateleira "${shelfToDelete}" excluída!`);
   };
 
+  // New: Class management functions
+  const handleAddClass = () => {
+    const formattedClass = newClass.trim().toUpperCase();
+    if (!formattedClass) {
+      showError('O nome da turma não pode estar vazio.');
+      return;
+    }
+    if (classes.includes(formattedClass)) {
+      showError('Essa turma já existe.');
+      return;
+    }
+    setClasses([...classes, formattedClass].sort());
+    setNewClass('');
+    showSuccess(`Turma "${formattedClass}" adicionada!`);
+  };
+
+  const handleDeleteClass = (classToDelete: string) => {
+    if (students.some(student => student.class === classToDelete)) {
+      showError('Não é possível excluir uma turma que está em uso por um aluno.');
+      return;
+    }
+    setClasses(classes.filter(c => c !== classToDelete));
+    showSuccess(`Turma "${classToDelete}" excluída!`);
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Configurações</h1>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3"> {/* Adjusted grid for 3 columns */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle>Informações da Escola</CardTitle>
@@ -151,7 +190,6 @@ const SettingsPage = () => {
           </CardContent>
         </Card>
 
-        {/* New: Card for Shelf Management */}
         <Card>
           <CardHeader>
             <CardTitle>Gerenciamento de Prateleiras</CardTitle>
@@ -174,6 +212,37 @@ const SettingsPage = () => {
                 <div key={shelf} className="flex items-center justify-between rounded-md bg-muted p-2">
                   <span className="text-sm font-medium">{shelf}</span>
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteShelf(shelf)}>
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* New: Card for Class Management */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Gerenciamento de Turmas</CardTitle>
+            <CardDescription>
+              Adicione ou remova turmas para organizar os alunos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2 mb-4">
+              <Input
+                value={newClass}
+                onChange={(e) => setNewClass(e.target.value.toUpperCase())}
+                placeholder="Ex: 1º ANO A"
+                onKeyDown={(e) => e.key === 'Enter' && handleAddClass()}
+              />
+              <Button onClick={handleAddClass}>Adicionar</Button>
+            </div>
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+              {classes.map(className => (
+                <div key={className} className="flex items-center justify-between rounded-md bg-muted p-2">
+                  <span className="text-sm font-medium">{className}</span>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteClass(className)}>
                     <Trash2 className="h-4 w-4 text-red-500" />
                   </Button>
                 </div>
