@@ -35,11 +35,9 @@ const findCaseInsensitiveKey = (obj: any, possibleKeys: string[]): string | unde
 };
 
 // Helper function to validate and process a single student object from JSON
-const processJsonStudent = (data: any, index: number, seenRegistrations: Set<string>): Student | null => {
-  // Added 'ID' as a possible key for registration
-  const regKey = findCaseInsensitiveKey(data, ['registration', 'RA', 'ID']);
-  const registration = String(regKey ? data[regKey] : '').trim();
-
+const processJsonStudent = (data: any, index: number): Student | null => {
+  // RA/Registration is no longer required or used for uniqueness check here.
+  
   const nameKey = findCaseInsensitiveKey(data, ['name', 'nome']);
   const name = String(nameKey ? data[nameKey] : '').trim().toUpperCase();
 
@@ -71,20 +69,16 @@ const processJsonStudent = (data: any, index: number, seenRegistrations: Set<str
     }
   }
 
-  if (!registration || !name || !studentClass) {
-    console.warn(`Pulando entrada JSON ${index + 1}: Campos obrigatórios ausentes (RA, nome, turma). Dados: ${JSON.stringify(data)}`);
+  if (!name || !studentClass) {
+    console.warn(`Pulando entrada JSON ${index + 1}: Campos obrigatórios ausentes (nome, turma). Dados: ${JSON.stringify(data)}`);
     return null;
   }
 
-  if (seenRegistrations.has(registration)) {
-    console.warn(`Pulando RA duplicado na entrada JSON ${index + 1}: ${registration}. Dados: ${JSON.stringify(data)}`);
-    return null;
-  }
-  seenRegistrations.add(registration);
+  // Note: Since RA is removed, we rely on the system to generate a unique ID.
+  // We cannot check for name duplication here as multiple students can have the same name.
 
   return {
     id: generateId(),
-    registration,
     name,
     class: studentClass,
     type,
@@ -95,7 +89,7 @@ const processJsonStudent = (data: any, index: number, seenRegistrations: Set<str
 
 
 // Helper function to process a single row from CSV/XLSX
-const processRow = (row: any[], index: number, seenRegistrations: Set<string>, headerMap: Map<string, number>): Student | null => {
+const processRow = (row: any[], index: number, headerMap: Map<string, number>): Student | null => {
   
   const getCell = (key: string) => {
     const colIndex = headerMap.get(key);
@@ -103,7 +97,7 @@ const processRow = (row: any[], index: number, seenRegistrations: Set<string>, h
   };
 
   // Use header map to extract data
-  const registration = getCell('RA');
+  // RA is ignored
   const name = getCell('NOME COMPLETO');
   const type = getCell('TIPO');
   const studentClass = getCell('TURMA');
@@ -111,16 +105,12 @@ const processRow = (row: any[], index: number, seenRegistrations: Set<string>, h
   const blockDateRaw = getCell('DATA_BLOQUEIO');
 
 
-  if (!registration || !name || !studentClass) {
-    console.warn(`Pulando linha ${index + 1}: Campos obrigatórios ausentes (RA, Nome, Turma).`);
+  if (!name || !studentClass) {
+    console.warn(`Pulando linha ${index + 1}: Campos obrigatórios ausentes (Nome, Turma).`);
     return null;
   }
   
-  if (seenRegistrations.has(registration)) {
-      console.warn(`Pulando RA duplicado na linha ${index + 1}: ${registration}`);
-      return null;
-  }
-  seenRegistrations.add(registration);
+  // No check for registration duplication needed anymore.
 
   const upperName = name.toUpperCase();
   const upperClass = studentClass.toUpperCase();
@@ -145,7 +135,6 @@ const processRow = (row: any[], index: number, seenRegistrations: Set<string>, h
 
   return {
     id: generateId(),
-    registration,
     name: upperName,
     class: upperClass,
     type: upperType,
@@ -158,7 +147,6 @@ const processRow = (row: any[], index: number, seenRegistrations: Set<string>, h
 const processDataInChunks = (data: any[], isJson: boolean, onProgress: (progress: number) => void): Promise<Student[]> => {
   return new Promise((resolve) => {
     const newStudents: Student[] = [];
-    const seenRegistrations = new Set<string>();
     const totalItems = data.length;
     
     let headerMap = new Map<string, number>();
@@ -194,8 +182,8 @@ const processDataInChunks = (data: any[], isJson: boolean, onProgress: (progress
         }
         
         const student = isJson 
-          ? processJsonStudent(item, i, seenRegistrations)
-          : processRow(item, i, seenRegistrations, headerMap);
+          ? processJsonStudent(item, i) // Removed seenRegistrations argument
+          : processRow(item, i, headerMap);
           
         if (student) {
           newStudents.push(student);
@@ -338,7 +326,7 @@ const ImportStudentsDialog = ({ onImport, closeDialog }: ImportStudentsDialogPro
           const result = onImport(studentsToImport);
           setProcessedCount(result.processedCount);
         } else {
-          showError('Nenhum aluno válido encontrado após o processamento. Verifique o formato dos dados ou se os RAs estão duplicados.');
+          showError('Nenhum aluno válido encontrado após o processamento. Verifique o formato dos dados.');
         }
         setHasResult(true);
 
@@ -380,9 +368,9 @@ const ImportStudentsDialog = ({ onImport, closeDialog }: ImportStudentsDialogPro
             <AlertDescription>
               <ul className="list-disc list-inside text-sm space-y-1 mt-2">
                 <li>O arquivo pode ser <strong>.txt, .csv, .xlsx, .xls ou .json</strong>.</li>
-                <li>Para <strong>JSON</strong>, o formato deve ser um array de objetos de alunos (ex: <code className="font-mono bg-muted p-1 rounded text-xs">[{'{'} "registration": "12345", "name": "...", "type": "ALUNO", "isBlocked": false {'}'}]</code>).</li>
+                <li>Para <strong>JSON</strong>, o formato deve ser um array de objetos de alunos (ex: <code className="font-mono bg-muted p-1 rounded text-xs">[{'{'} "name": "...", "type": "ALUNO", "class": "1º ANO A", "isBlocked": false {'}'}]</code>).</li>
                 <li>Para <strong>CSV/XLSX</strong>, o sistema tentará identificar as colunas pelos cabeçalhos. Use os seguintes nomes (sem acentos): <br />
-                  <code className="font-mono bg-muted p-1 rounded text-xs">RA;NOME COMPLETO;TIPO;TURMA;BLOQUEADO;DATA_BLOQUEIO</code>
+                  <code className="font-mono bg-muted p-1 rounded text-xs">NOME COMPLETO;TIPO;TURMA;BLOQUEADO;DATA_BLOQUEIO</code>
                 </li>
               </ul>
             </AlertDescription>

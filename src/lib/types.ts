@@ -13,7 +13,6 @@ export interface Book {
 
 export interface Student {
   id: string;
-  registration: string; // RA
   name: string;         // Nome Completo
   class: string;        // Turma
   type: string;         // Tipo de aluno (ex: Aluno, Professor, Funcionário)

@@ -48,19 +48,14 @@ const StudentsPage = () => {
 
   const filteredStudents = useMemo(() => {
     return students.filter(student =>
-      student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.registration.toLowerCase().includes(searchTerm.toLowerCase())
+      student.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [students, searchTerm]);
 
   const handleAddStudent = (data: StudentFormData) => {
-    if (students.some(student => student.registration === data.registration)) {
-      showError('Já existe um aluno cadastrado com este RA.');
-      return;
-    }
+    // Não há mais validação de RA duplicado, pois o RA foi removido.
     const newStudent: Student = {
       id: generateId(),
-      registration: data.registration,
       name: data.name,
       class: data.class,
       type: data.type,
@@ -73,10 +68,6 @@ const StudentsPage = () => {
 
   const handleEditStudent = (data: StudentFormData) => {
     if (!selectedStudent) return;
-    if (students.some(s => s.registration === data.registration && s.id !== selectedStudent.id)) {
-      showError('Já existe outro aluno cadastrado com este RA.');
-      return;
-    }
     
     const wasBlocked = selectedStudent.isBlocked;
     const isNowBlocked = data.isBlocked;
@@ -157,7 +148,7 @@ const StudentsPage = () => {
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome ou RA..."
+            placeholder="Buscar por nome..."
             className="pl-10"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -200,7 +191,6 @@ const StudentsPage = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>ID</TableHead>
               <TableHead>Nome Completo</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>Turma</TableHead>
@@ -213,7 +203,6 @@ const StudentsPage = () => {
             {filteredStudents.length > 0 ? (
               filteredStudents.map(student => (
                 <TableRow key={student.id}>
-                  <TableCell>{student.registration}</TableCell>
                   <TableCell className="font-medium">{student.name}</TableCell>
                   <TableCell>{student.type || 'N/A'}</TableCell>
                   <TableCell>{student.class}</TableCell>
@@ -262,7 +251,7 @@ const StudentsPage = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="text-center h-24">
+                <TableCell colSpan={6} className="text-center h-24">
                   Nenhum aluno encontrado.
                 </TableCell>
               </TableRow>

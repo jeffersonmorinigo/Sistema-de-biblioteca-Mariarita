@@ -18,7 +18,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { format } from 'date-fns';
 
 const studentSchema = z.object({
-  registration: z.string().min(1, 'RA é obrigatório'),
   name: z.string().min(1, 'Nome é obrigatório'),
   class: z.string().min(1, 'Turma é obrigatória'),
   type: z.string().min(1, 'Tipo é obrigatório'),
@@ -47,13 +46,11 @@ const StudentForm = ({ student, onSubmit, closeDialog, classes, onAddClass, onDe
   } = useForm<StudentFormData>({
     resolver: zodResolver(studentSchema),
     defaultValues: student ? {
-      registration: student.registration,
       name: student.name,
       class: student.class,
       type: student.type || 'ALUNO', // Default type if missing
       isBlocked: student.isBlocked || false,
     } : {
-      registration: '',
       name: '',
       class: '',
       type: 'ALUNO',
@@ -89,11 +86,7 @@ const StudentForm = ({ student, onSubmit, closeDialog, classes, onAddClass, onDe
       </DialogHeader>
       <form onSubmit={handleSubmit(handleFormSubmit)}>
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="registration" className="text-right">RA</Label>
-            <Input id="registration" {...register('registration')} className="col-span-3" />
-            {errors.registration && <p className="col-span-4 text-red-500 text-sm text-right">{errors.registration.message}</p>}
-          </div>
+          {/* RA REMOVIDO */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="name" className="text-right">Nome Completo</Label>
             <Input id="name" {...register('name')} className="col-span-3 uppercase" />

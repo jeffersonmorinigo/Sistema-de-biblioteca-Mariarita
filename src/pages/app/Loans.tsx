@@ -194,7 +194,7 @@ const LoansPage = () => {
             <table>
               <thead>
                 <tr>
-                  <th>Aluno (RA)</th>
+                  <th>Aluno</th>
                   <th>Turma</th>
                   <th>Livro (Código)</th>
                   <th>Prateleira</th>
@@ -207,7 +207,7 @@ const LoansPage = () => {
                   const book = bookMap.get(loan.bookCode);
                   return `
                     <tr>
-                      <td>${student?.name || 'N/A'} (${student?.registration || 'N/A'})</td>
+                      <td>${student?.name || 'N/A'}</td>
                       <td>${student?.class || 'N/A'}</td>
                       <td>${book?.title || 'N/A'} (${book?.code || 'N/A'})</td>
                       <td>${book?.shelf || 'N/A'}</td>

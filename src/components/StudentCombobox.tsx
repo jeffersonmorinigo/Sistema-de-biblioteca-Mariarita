@@ -32,7 +32,7 @@ export function StudentCombobox({ students, value, onChange }: StudentComboboxPr
   const selectedStudentDisplay = React.useMemo(() => {
     if (!value) return "Selecione ou busque um aluno...";
     const student = students.find((s) => s.id === value);
-    return student ? `${student.name} (RA: ${student.registration}) - Turma: ${student.class}` : "Selecione ou busque um aluno...";
+    return student ? `${student.name} - Turma: ${student.class}` : "Selecione ou busque um aluno...";
   }, [value, students]);
 
   return (
@@ -50,14 +50,14 @@ export function StudentCombobox({ students, value, onChange }: StudentComboboxPr
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
         <Command>
-          <CommandInput placeholder="Buscar por nome ou RA..." />
+          <CommandInput placeholder="Buscar por nome..." />
           <CommandList>
             <CommandEmpty>Nenhum aluno encontrado.</CommandEmpty>
             <CommandGroup>
               {students.map((student) => (
                 <CommandItem
                   key={student.id}
-                  value={`${student.name} ${student.registration} ${student.class}`}
+                  value={`${student.name} ${student.class}`}
                   onSelect={() => {
                     onChange(student.id)
                     setOpen(false)
@@ -71,7 +71,7 @@ export function StudentCombobox({ students, value, onChange }: StudentComboboxPr
                   />
                   <div>
                     <p>{student.name}</p>
-                    <p className="text-xs text-muted-foreground">RA: {student.registration} | Turma: {student.class}</p>
+                    <p className="text-xs text-muted-foreground">Turma: {student.class}</p>
                   </div>
                 </CommandItem>
               ))}

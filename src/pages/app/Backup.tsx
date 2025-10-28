@@ -72,7 +72,8 @@ const BackupPage = () => {
       };
 
       sqlString += generateTableSql('users', ['id', 'name', 'email', 'password'], data.users);
-      sqlString += generateTableSql('students', ['id', 'registration', 'name', 'class', 'type', 'isBlocked', 'blockDate'], data.students);
+      // REMOVIDO 'registration'
+      sqlString += generateTableSql('students', ['id', 'name', 'class', 'type', 'isBlocked', 'blockDate'], data.students);
       sqlString += generateTableSql('books', ['id', 'code', 'isbn', 'title', 'author', 'publisher', 'shelf', 'category', 'bookType', 'quantity'], data.books);
       sqlString += generateTableSql('loans', ['id', 'studentId', 'bookCode', 'loanDate', 'expectedReturnDate', 'returnDate'], data.loans);
 
