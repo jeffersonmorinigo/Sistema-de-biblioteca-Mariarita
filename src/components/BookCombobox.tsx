@@ -73,7 +73,8 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
         <Command>
-          <CommandInput placeholder="Buscar por título, autor, código, ISBN ou prateleira..." />
+          {/* Melhorando o placeholder para guiar a busca */}
+          <CommandInput placeholder="Buscar por Título, Autor, Código ou Prateleira..." />
           <CommandList>
             <CommandEmpty>Nenhum livro disponível encontrado.</CommandEmpty>
             <CommandGroup>
@@ -86,23 +87,21 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
                     onChange(book.code)
                     setOpen(false)
                   }}
+                  className="flex items-center justify-between space-x-2"
                 >
                   <Check
                     className={cn(
-                      "mr-2 h-4 w-4",
+                      "mr-2 h-4 w-4 flex-shrink-0",
                       value === book.code ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  <div className="flex-1">
-                    <p className="font-medium">{book.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Autor: {book.author} | Categoria: {book.category} | Tipo: {book.bookType}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Prateleira: {book.shelf || 'N/A'} | Código: {book.code}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{book.title}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {book.author} | Cód: {book.code} | Prat: {book.shelf || 'N/A'}
                     </p>
                   </div>
-                  <span className="text-xs bg-secondary text-secondary-foreground rounded-full px-2 py-0.5 ml-2 flex-shrink-0">
+                  <span className="text-xs bg-primary text-primary-foreground rounded-full px-2 py-0.5 ml-2 flex-shrink-0 font-semibold">
                     {book.availableCount} {book.availableCount === 1 ? 'disp.' : 'disps.'}
                   </span>
                 </CommandItem>
