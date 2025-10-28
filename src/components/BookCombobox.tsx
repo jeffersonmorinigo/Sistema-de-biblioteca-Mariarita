@@ -73,14 +73,14 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
         <Command>
-          <CommandInput placeholder="Buscar por título ou autor..." />
+          <CommandInput placeholder="Buscar por título, autor, código, ISBN ou prateleira..." />
           <CommandList>
             <CommandEmpty>Nenhum livro disponível encontrado.</CommandEmpty>
             <CommandGroup>
               {availableBooks.map((book) => (
                 <CommandItem
                   key={book.id}
-                  value={`${book.title} ${book.author} ${book.shelf}`}
+                  value={`${book.title} ${book.author} ${book.shelf} ${book.code} ${book.isbn}`}
                   onSelect={() => {
                     onChange(book.code)
                     setOpen(false)
