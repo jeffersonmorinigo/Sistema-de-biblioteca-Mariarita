@@ -71,7 +71,11 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+      <PopoverContent 
+        className="w-[--radix-popover-trigger-width] p-0"
+        side="bottom" // Força a abertura para baixo
+        align="start" // Alinha à esquerda
+      >
         <Command>
           {/* O CommandInput agora está fixo no topo */}
           <CommandInput placeholder="Buscar por Título, Autor, Código ou Prateleira..." />
