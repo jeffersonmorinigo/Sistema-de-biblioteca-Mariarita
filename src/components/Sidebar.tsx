@@ -1,7 +1,5 @@
-import { NavLink, useNavigate } from 'react-router-dom';
-import { Book, Users, ArrowLeftRight, DatabaseBackup, LogOut, Library, UserCog, Settings } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/auth/AuthContext';
+import { NavLink } from 'react-router-dom';
+import { Book, Users, ArrowLeftRight, DatabaseBackup, UserCog, Settings, Library } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
@@ -15,20 +13,7 @@ const navItems = [
 ];
 
 const Sidebar = () => {
-  const { logout } = useAuth();
-  const navigate = useNavigate();
   const [schoolName] = useLocalStorage('schoolName', '');
-
-  const handleLogout = () => {
-    logout();
-    // Se estiver no ambiente Electron, fechar o aplicativo
-    if (window.electron && window.electron.quitApp) {
-      window.electron.quitApp();
-    } else {
-      // Caso contrário (ambiente web), navegar para a página de login
-      navigate('/login');
-    }
-  };
 
   return (
     <aside className="w-64 flex-shrink-0 bg-card border-r p-4 flex flex-col">
@@ -63,10 +48,7 @@ const Sidebar = () => {
           ))}
         </ul>
       </nav>
-      <Button variant="ghost" onClick={handleLogout} className="w-full justify-start">
-        <LogOut className="w-5 h-5 mr-3" />
-        Sair
-      </Button>
+      {/* Botão de Sair removido daqui */}
     </aside>
   );
 };

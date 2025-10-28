@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
 import Sidebar from '@/components/Sidebar';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Loan } from '@/lib/types';
 import { isAfter } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
+import LogoutButton from '@/components/LogoutButton'; // Importando o novo componente
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const [loans] = useLocalStorage<Loan[]>('loans', []);
@@ -32,7 +32,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto relative">
+        {/* Botão de Logout no canto superior direito */}
+        <div className="absolute top-4 right-4 z-10">
+          <LogoutButton />
+        </div>
+        
         {overdueCount > 0 && (
           <Alert variant="destructive" className="mb-6">
             <AlertTriangle className="h-4 w-4" />
