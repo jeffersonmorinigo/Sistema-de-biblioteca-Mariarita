@@ -127,27 +127,67 @@ const LoansPage = () => {
           <head>
             <title>Relatório de Empréstimos Atrasados</title>
             <style>
-              body { font-family: sans-serif; margin: 2em; }
-              table { width: 100%; border-collapse: collapse; }
-              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-              th { background-color: #f2f2f2; }
-              h1, h2 { text-align: center; margin: 0; }
-              h2 { font-weight: normal; margin-bottom: 1em; }
-              .header { margin-bottom: 2em; }
+              body { 
+                font-family: Arial, sans-serif; 
+                margin: 0; 
+                padding: 20px;
+                color: #333;
+              }
+              @page {
+                size: A4;
+                margin: 1cm;
+              }
+              table { 
+                width: 100%; 
+                border-collapse: collapse; 
+                margin-top: 20px;
+                font-size: 10pt;
+              }
+              th, td { 
+                border: 1px solid #ccc; 
+                padding: 8px; 
+                text-align: left; 
+              }
+              th { 
+                background-color: #f0f0f0; 
+                font-weight: bold;
+              }
+              h1 { 
+                text-align: center; 
+                margin-bottom: 5px; 
+                font-size: 18pt;
+              }
+              h2 { 
+                text-align: center; 
+                font-weight: normal; 
+                margin-top: 0; 
+                margin-bottom: 20px; 
+                font-size: 14pt;
+              }
+              .header { 
+                margin-bottom: 20px; 
+                border-bottom: 2px solid #333;
+                padding-bottom: 10px;
+              }
+              .info {
+                font-size: 10pt;
+                margin-bottom: 10px;
+              }
             </style>
           </head>
           <body>
             <div class="header">
               <h1>${schoolName}</h1>
-              <h2>Relatório de Empréstimos Atrasados</h2>
+              <h2>Relatório de Empréstimos Atrasados (${overdueLoans.length} itens)</h2>
             </div>
-            <p>Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</p>
+            <div class="info">
+              <p>Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</p>
+            </div>
             <table>
               <thead>
                 <tr>
-                  <th>Aluno</th>
-                  <th>RA</th>
-                  <th>Livro</th>
+                  <th>Aluno (RA)</th>
+                  <th>Livro (Código)</th>
                   <th>Prateleira</th>
                   <th>Data de Devolução Prevista</th>
                 </tr>
@@ -158,9 +198,8 @@ const LoansPage = () => {
                   const book = bookMap.get(loan.bookCode);
                   return `
                     <tr>
-                      <td>${student?.name || 'N/A'}</td>
-                      <td>${student?.registration || 'N/A'}</td>
-                      <td>${book?.title || 'N/A'}</td>
+                      <td>${student?.name || 'N/A'} (${student?.registration || 'N/A'})</td>
+                      <td>${book?.title || 'N/A'} (${book?.code || 'N/A'})</td>
                       <td>${book?.shelf || 'N/A'}</td>
                       <td>${format(new Date(loan.expectedReturnDate), 'dd/MM/yyyy', { locale: ptBR })}</td>
                     </tr>
@@ -172,7 +211,13 @@ const LoansPage = () => {
         </html>
       `);
       reportWindow.document.close();
-      reportWindow.print();
+      // Wait a moment for the content to render before printing
+      setTimeout(() => {
+        reportWindow.print();
+        // Close the window after printing (optional, but good practice)
+        // Note: Some browsers might block closing if not initiated by user action.
+        // reportWindow.close(); 
+      }, 500);
     }
   };
 
@@ -193,7 +238,7 @@ const LoansPage = () => {
         <div className="flex gap-2 w-full sm:w-auto">
           <Button onClick={handleGenerateReport} variant="outline" className="w-full sm:w-auto">
             <FileText className="mr-2 h-4 w-4" />
-            Relatório de Atrasos
+            Relatório de Atrasos (PDF)
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -217,7 +262,7 @@ const LoansPage = () => {
             <TableRow>
               <TableHead>Aluno</TableHead>
               <TableHead>Livro</TableHead>
-              <TableHead>Prateleira</TableHead> {/* Nova coluna */}
+              <TableHead>Prateleira</TableHead>
               <TableHead>Data do Empréstimo</TableHead>
               <TableHead>Data de Devolução</TableHead>
               <TableHead>Status</TableHead>
@@ -228,12 +273,12 @@ const LoansPage = () => {
             {filteredAndSortedLoans.length > 0 ? (
               filteredAndSortedLoans.map(loan => {
                 const isOverdue = !loan.returnDate && isAfter(new Date(), new Date(loan.expectedReturnDate));
-                const book = bookMap.get(loan.bookCode); // Obter o livro para acessar a prateleira
+                const book = bookMap.get(loan.bookCode);
                 return (
                   <TableRow key={loan.id} className={cn(isOverdue && 'bg-red-100 dark:bg-red-900/20')}>
                     <TableCell className="font-medium">{studentMap.get(loan.studentId)?.name || 'Aluno não encontrado'}</TableCell>
                     <TableCell>{book?.title || 'Livro não encontrado'}</TableCell>
-                    <TableCell>{book?.shelf || 'N/A'}</TableCell> {/* Exibir prateleira */}
+                    <TableCell>{book?.shelf || 'N/A'}</TableCell>
                     <TableCell>{format(new Date(loan.loanDate), 'dd/MM/yyyy', { locale: ptBR })}</TableCell>
                     <TableCell>{format(new Date(loan.expectedReturnDate), 'dd/MM/yyyy', { locale: ptBR })}</TableCell>
                     <TableCell>
