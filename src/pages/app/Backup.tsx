@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Download, Upload, AlertTriangle, Database } from 'lucide-react';
+import { Download, Upload, AlertTriangle, Database, Eraser } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { format } from 'date-fns';
 import { generateAndDownloadJsonBackup } from '@/lib/backupUtils';
@@ -142,6 +142,19 @@ const BackupPage = () => {
     reader.readAsText(restoreFile);
   };
   
+  const handleClearAllData = () => {
+    // Clear all relevant keys from localStorage
+    LOCAL_STORAGE_KEYS.forEach(key => {
+      localStorage.removeItem(key);
+    });
+    
+    // Force reload to reset the application state and trigger default user creation
+    showSuccess('Todos os dados foram apagados. O sistema será reiniciado.');
+    setTimeout(() => {
+      window.location.reload();
+    }, 2000);
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Backup & Restauração</h1>
@@ -214,6 +227,47 @@ const BackupPage = () => {
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
                   <AlertDialogAction onClick={handleRestore}>
                     Sim, restaurar backup
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </CardContent>
+        </Card>
+        
+        {/* Seção de Limpar Dados Restaurada */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Limpar Todos os Dados</CardTitle>
+            <CardDescription>
+              Apague todos os livros, alunos, empréstimos e configurações. O sistema será resetado para o estado inicial.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Perigo!</AlertTitle>
+              <AlertDescription>
+                Esta ação é irreversível e apagará permanentemente todos os dados armazenados localmente.
+              </AlertDescription>
+            </Alert>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="mt-4 w-full">
+                  <Eraser className="mr-2 h-4 w-4" />
+                  Apagar Tudo
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirmação de Limpeza de Dados</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Você está prestes a apagar **TODOS** os dados do sistema (livros, alunos, empréstimos, usuários, configurações). Esta ação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleClearAllData} className="bg-red-600 hover:bg-red-700">
+                    Sim, Apagar Todos os Dados
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
