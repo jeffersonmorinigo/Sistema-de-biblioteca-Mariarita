@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Book } from '@/lib/types';
 import { CategoryCombobox } from './CategoryCombobox';
+import { ShelfCombobox } from './ShelfCombobox'; // New: Import ShelfCombobox
 
 const bookSchema = z.object({
   code: z.string().min(1, 'Código é obrigatório'),
@@ -20,7 +21,7 @@ const bookSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   author: z.string().min(1, 'Autor é obrigatório'),
   publisher: z.string().min(1, 'Editora é obrigatória'),
-  shelf: z.string(),
+  shelf: z.string().min(1, 'Prateleira é obrigatória'), // Shelf is now required
   category: z.string().min(1, 'Categoria é obrigatória'),
   bookType: z.string().min(1, 'Tipo é obrigatório'),
   quantity: z.coerce.number().min(1, 'A quantidade deve ser pelo menos 1'),
@@ -33,9 +34,10 @@ interface BookFormProps {
   onSubmit: (data: BookFormData) => void;
   closeDialog: () => void;
   categories: string[];
+  shelves: string[]; // New: Pass shelves to BookForm
 }
 
-const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) => {
+const BookForm = ({ book, onSubmit, closeDialog, categories, shelves }: BookFormProps) => { // New: Receive shelves
   const {
     register,
     handleSubmit,
@@ -126,7 +128,19 @@ const BookForm = ({ book, onSubmit, closeDialog, categories }: BookFormProps) =>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="shelf" className="text-right">Prateleira</Label>
-            <Input id="shelf" {...register('shelf')} className="col-span-3 uppercase" placeholder="Ex: A1, B2" />
+            <div className="col-span-3">
+              <Controller
+                name="shelf"
+                control={control}
+                render={({ field }) => (
+                  <ShelfCombobox // New: Using ShelfCombobox
+                    shelves={shelves}
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
+            </div>
             {errors.shelf && <p className="col-span-4 text-red-500 text-sm text-right">{errors.shelf.message}</p>}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">

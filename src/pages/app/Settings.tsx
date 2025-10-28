@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { showSuccess, showError } from '@/utils/toast';
 import { Trash2 } from 'lucide-react';
-import { Book } from '@/lib/types';
+import { Book, Student } from '@/lib/types';
 
 const settingsSchema = z.object({
   schoolName: z.string().min(1, 'O nome da escola é obrigatório.'),
@@ -20,8 +20,12 @@ type SettingsFormData = z.infer<typeof settingsSchema>;
 const SettingsPage = () => {
   const [schoolName, setSchoolName] = useLocalStorage('schoolName', '');
   const [categories, setCategories] = useLocalStorage<string[]>('book_categories', ['GERAL']);
+  const [shelves, setShelves] = useLocalStorage<string[]>('book_shelves', ['N/A']); // New: Shelves state
   const [books] = useLocalStorage<Book[]>('books', []);
+  const [students] = useLocalStorage<Student[]>('students', []); // Needed to check if classes are in use
+
   const [newCategory, setNewCategory] = useState('');
+  const [newShelf, setNewShelf] = useState(''); // New: New shelf input state
 
   const {
     register,
@@ -63,10 +67,35 @@ const SettingsPage = () => {
     showSuccess(`Categoria "${categoryToDelete}" excluída!`);
   };
 
+  // New: Shelf management functions
+  const handleAddShelf = () => {
+    const formattedShelf = newShelf.trim().toUpperCase();
+    if (!formattedShelf) {
+      showError('O nome da prateleira não pode estar vazio.');
+      return;
+    }
+    if (shelves.includes(formattedShelf)) {
+      showError('Essa prateleira já existe.');
+      return;
+    }
+    setShelves([...shelves, formattedShelf].sort());
+    setNewShelf('');
+    showSuccess(`Prateleira "${formattedShelf}" adicionada!`);
+  };
+
+  const handleDeleteShelf = (shelfToDelete: string) => {
+    if (books.some(book => book.shelf === shelfToDelete)) {
+      showError('Não é possível excluir uma prateleira que está em uso por um livro.');
+      return;
+    }
+    setShelves(shelves.filter(s => s !== shelfToDelete));
+    showSuccess(`Prateleira "${shelfToDelete}" excluída!`);
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Configurações</h1>
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3"> {/* Adjusted grid for 3 columns */}
         <Card>
           <CardHeader>
             <CardTitle>Informações da Escola</CardTitle>
@@ -114,6 +143,37 @@ const SettingsPage = () => {
                 <div key={category} className="flex items-center justify-between rounded-md bg-muted p-2">
                   <span className="text-sm font-medium">{category}</span>
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteCategory(category)}>
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* New: Card for Shelf Management */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Gerenciamento de Prateleiras</CardTitle>
+            <CardDescription>
+              Adicione ou remova prateleiras para organizar a localização dos livros.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2 mb-4">
+              <Input
+                value={newShelf}
+                onChange={(e) => setNewShelf(e.target.value.toUpperCase())}
+                placeholder="Ex: A1, B2"
+                onKeyDown={(e) => e.key === 'Enter' && handleAddShelf()}
+              />
+              <Button onClick={handleAddShelf}>Adicionar</Button>
+            </div>
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+              {shelves.map(shelf => (
+                <div key={shelf} className="flex items-center justify-between rounded-md bg-muted p-2">
+                  <span className="text-sm font-medium">{shelf}</span>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteShelf(shelf)}>
                     <Trash2 className="h-4 w-4 text-red-500" />
                   </Button>
                 </div>

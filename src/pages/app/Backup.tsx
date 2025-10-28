@@ -23,7 +23,7 @@ const BackupPage = () => {
 
   const LOCAL_STORAGE_KEYS = [
     'books', 'students', 'loans', 'users', 
-    'schoolName', 'book_categories', 'student_classes',
+    'schoolName', 'book_categories', 'student_classes', 'book_shelves', // New: Added book_shelves
     'isAuthenticated'
   ];
 
@@ -102,6 +102,9 @@ const BackupPage = () => {
       }
       if (data.student_classes) {
         sqlString += `INSERT INTO settings (key, value) VALUES ('student_classes', ${escapeSql(JSON.stringify(data.student_classes))});\n`;
+      }
+      if (data.book_shelves) { // New: Add book_shelves to SQL backup
+        sqlString += `INSERT INTO settings (key, value) VALUES ('book_shelves', ${escapeSql(JSON.stringify(data.book_shelves))});\n`;
       }
 
       const blob = new Blob([sqlString], { type: 'application/sql' });

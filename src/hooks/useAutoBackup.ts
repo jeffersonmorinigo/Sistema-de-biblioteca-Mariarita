@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 
 const LOCAL_STORAGE_KEYS = [
   'books', 'students', 'loans', 'users',
-  'schoolName', 'book_categories', 'student_classes',
+  'schoolName', 'book_categories', 'student_classes', 'book_shelves', // New: Added book_shelves
   'isAuthenticated'
 ];
 

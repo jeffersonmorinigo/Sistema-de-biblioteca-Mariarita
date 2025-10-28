@@ -37,6 +37,7 @@ const BooksPage = () => {
   const [books, setBooks] = useLocalStorage<Book[]>('books', []);
   const [loans] = useLocalStorage<Loan[]>('loans', []);
   const [categories] = useLocalStorage<string[]>('book_categories', ['GERAL']);
+  const [shelves] = useLocalStorage<string[]>('book_shelves', ['N/A']); // New: Get shelves from local storage
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -160,12 +161,14 @@ const BooksPage = () => {
                 Adicionar Livro
               </Button>
             </DialogTrigger>
+            {/* Pass shelves to BookForm */}
             <BookForm 
               key={selectedBook?.id || 'new'}
               book={selectedBook} 
               onSubmit={selectedBook ? handleEditBook : handleAddBook} 
               closeDialog={() => setIsAddDialogOpen(false)}
               categories={categories}
+              shelves={shelves} 
             />
           </Dialog>
         </div>
@@ -181,7 +184,7 @@ const BooksPage = () => {
               <TableHead>Editora</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>ISBN</TableHead>
-              <TableHead>Prateleira</TableHead> {/* Adicionada a coluna Prateleira */}
+              <TableHead>Prateleira</TableHead>
               <TableHead>Disponível</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
@@ -199,7 +202,7 @@ const BooksPage = () => {
                     <TableCell>{book.publisher}</TableCell>
                     <TableCell>{book.bookType}</TableCell>
                     <TableCell>{book.isbn}</TableCell>
-                    <TableCell>{book.shelf || 'N/A'}</TableCell> {/* Exibir o valor da prateleira */}
+                    <TableCell>{book.shelf || 'N/A'}</TableCell>
                     <TableCell className="font-semibold">{available}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" onClick={() => openEditDialog(book)}>
@@ -232,7 +235,7 @@ const BooksPage = () => {
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={9} className="text-center h-24"> {/* Ajustado o colspan */}
+                <TableCell colSpan={9} className="text-center h-24">
                   Nenhum livro encontrado.
                 </TableCell>
               </TableRow>
