@@ -80,7 +80,8 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
               {availableBooks.map((book) => (
                 <CommandItem
                   key={book.id}
-                  value={`${book.title} ${book.author} ${book.shelf} ${book.code} ${book.isbn}`}
+                  // Adicionando categoria e tipo na busca
+                  value={`${book.title} ${book.author} ${book.shelf} ${book.code} ${book.isbn} ${book.category} ${book.bookType}`}
                   onSelect={() => {
                     onChange(book.code)
                     setOpen(false)
@@ -93,10 +94,15 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
                     )}
                   />
                   <div className="flex-1">
-                    <p>{book.title}</p>
-                    <p className="text-xs text-muted-foreground">Autor: {book.author} | Prateleira: {book.shelf || 'N/A'}</p>
+                    <p className="font-medium">{book.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Autor: {book.author} | Categoria: {book.category} | Tipo: {book.bookType}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Prateleira: {book.shelf || 'N/A'} | Código: {book.code}
+                    </p>
                   </div>
-                  <span className="text-xs bg-secondary text-secondary-foreground rounded-full px-2 py-0.5">
+                  <span className="text-xs bg-secondary text-secondary-foreground rounded-full px-2 py-0.5 ml-2 flex-shrink-0">
                     {book.availableCount} {book.availableCount === 1 ? 'disp.' : 'disps.'}
                   </span>
                 </CommandItem>

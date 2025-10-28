@@ -63,14 +63,14 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
   };
 
   return (
-    <DialogContent className="sm:max-w-[425px]">
+    <DialogContent className="sm:max-w-[480px]"> {/* Aumentando um pouco a largura */}
       <DialogHeader>
         <DialogTitle>Registrar Novo Empréstimo</DialogTitle>
       </DialogHeader>
       <form onSubmit={handleSubmit(handleFormSubmit)}>
-        <div className="grid gap-6 py-4">
+        <div className="grid gap-5 py-4">
           <div className="space-y-2">
-            <Label htmlFor="studentId" className="mb-1">Aluno</Label>
+            <Label htmlFor="studentId">Aluno</Label>
             <Controller
               name="studentId"
               control={control}
@@ -85,10 +85,10 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
                 />
               )}
             />
-            {errors.studentId && <p className="text-red-500 text-sm">{errors.studentId.message}</p>}
+            {errors.studentId && <p className="text-red-500 text-sm mt-1">{errors.studentId.message}</p>}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="bookCode" className="mb-1">Livro (Disponíveis)</Label>
+            <Label htmlFor="bookCode">Livro (Disponíveis)</Label>
             <Controller
               name="bookCode"
               control={control}
@@ -103,10 +103,10 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
                 />
               )}
             />
-            {errors.bookCode && <p className="text-red-500 text-sm">{errors.bookCode.message}</p>}
+            {errors.bookCode && <p className="text-red-500 text-sm mt-1">{errors.bookCode.message}</p>}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="expectedReturnDate" className="mb-1">Data Prevista de Devolução</Label>
+            <Label htmlFor="expectedReturnDate">Data Prevista de Devolução</Label>
             <Controller
               name="expectedReturnDate"
               control={control}
@@ -131,12 +131,14 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
                       onSelect={field.onChange}
                       initialFocus
                       locale={ptBR}
+                      // Garante que a data mínima seja hoje
+                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                     />
                   </PopoverContent>
                 </Popover>
               )}
             />
-            {errors.expectedReturnDate && <p className="text-red-500 text-sm">{errors.expectedReturnDate.message}</p>}
+            {errors.expectedReturnDate && <p className="text-red-500 text-sm mt-1">{errors.expectedReturnDate.message}</p>}
           </div>
         </div>
         <DialogFooter>
