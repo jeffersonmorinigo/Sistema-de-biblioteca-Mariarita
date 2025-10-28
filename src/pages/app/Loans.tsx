@@ -50,10 +50,18 @@ const LoansPage = () => {
     const filtered = loans.filter(loan => {
       if (!searchTerm) return true;
       const lowercasedFilter = searchTerm.toLowerCase();
-      const studentName = studentMap.get(loan.studentId)?.name.toLowerCase() || '';
-      const bookTitle = bookMap.get(loan.bookCode)?.title.toLowerCase() || '';
-      const bookShelf = bookMap.get(loan.bookCode)?.shelf.toLowerCase() || '';
-      return studentName.includes(lowercasedFilter) || bookTitle.includes(lowercasedFilter) || bookShelf.includes(lowercasedFilter);
+      const student = studentMap.get(loan.studentId);
+      const book = bookMap.get(loan.bookCode);
+      
+      const studentName = student?.name.toLowerCase() || '';
+      const studentClass = student?.class.toLowerCase() || '';
+      const bookTitle = book?.title.toLowerCase() || '';
+      const bookShelf = book?.shelf.toLowerCase() || '';
+      
+      return studentName.includes(lowercasedFilter) 
+        || studentClass.includes(lowercasedFilter)
+        || bookTitle.includes(lowercasedFilter) 
+        || bookShelf.includes(lowercasedFilter);
     });
 
     return filtered.sort((a, b) => {
@@ -187,6 +195,7 @@ const LoansPage = () => {
               <thead>
                 <tr>
                   <th>Aluno (RA)</th>
+                  <th>Turma</th>
                   <th>Livro (Código)</th>
                   <th>Prateleira</th>
                   <th>Data de Devolução Prevista</th>
@@ -199,6 +208,7 @@ const LoansPage = () => {
                   return `
                     <tr>
                       <td>${student?.name || 'N/A'} (${student?.registration || 'N/A'})</td>
+                      <td>${student?.class || 'N/A'}</td>
                       <td>${book?.title || 'N/A'} (${book?.code || 'N/A'})</td>
                       <td>${book?.shelf || 'N/A'}</td>
                       <td>${format(new Date(loan.expectedReturnDate), 'dd/MM/yyyy', { locale: ptBR })}</td>
@@ -215,7 +225,6 @@ const LoansPage = () => {
       setTimeout(() => {
         reportWindow.print();
         // Close the window after printing (optional, but good practice)
-        // Note: Some browsers might block closing if not initiated by user action.
         // reportWindow.close(); 
       }, 500);
     }
@@ -261,6 +270,7 @@ const LoansPage = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Aluno</TableHead>
+              <TableHead>Turma</TableHead>
               <TableHead>Livro</TableHead>
               <TableHead>Prateleira</TableHead>
               <TableHead>Data do Empréstimo</TableHead>
@@ -273,10 +283,12 @@ const LoansPage = () => {
             {filteredAndSortedLoans.length > 0 ? (
               filteredAndSortedLoans.map(loan => {
                 const isOverdue = !loan.returnDate && isAfter(new Date(), new Date(loan.expectedReturnDate));
+                const student = studentMap.get(loan.studentId);
                 const book = bookMap.get(loan.bookCode);
                 return (
                   <TableRow key={loan.id} className={cn(isOverdue && 'bg-red-100 dark:bg-red-900/20')}>
-                    <TableCell className="font-medium">{studentMap.get(loan.studentId)?.name || 'Aluno não encontrado'}</TableCell>
+                    <TableCell className="font-medium">{student?.name || 'Aluno não encontrado'}</TableCell>
+                    <TableCell>{student?.class || 'N/A'}</TableCell>
                     <TableCell>{book?.title || 'Livro não encontrado'}</TableCell>
                     <TableCell>{book?.shelf || 'N/A'}</TableCell>
                     <TableCell>{format(new Date(loan.loanDate), 'dd/MM/yyyy', { locale: ptBR })}</TableCell>
@@ -324,7 +336,7 @@ const LoansPage = () => {
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="text-center h-24">
+                <TableCell colSpan={8} className="text-center h-24">
                   {searchTerm ? "Nenhum empréstimo encontrado." : "Nenhum empréstimo registrado."}
                 </TableCell>
               </TableRow>

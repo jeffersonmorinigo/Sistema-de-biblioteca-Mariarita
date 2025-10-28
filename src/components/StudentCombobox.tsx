@@ -32,7 +32,7 @@ export function StudentCombobox({ students, value, onChange }: StudentComboboxPr
   const selectedStudentDisplay = React.useMemo(() => {
     if (!value) return "Selecione ou busque um aluno...";
     const student = students.find((s) => s.id === value);
-    return student ? `${student.name} (RA: ${student.registration})` : "Selecione ou busque um aluno...";
+    return student ? `${student.name} (RA: ${student.registration}) - Turma: ${student.class}` : "Selecione ou busque um aluno...";
   }, [value, students]);
 
   return (
@@ -57,7 +57,7 @@ export function StudentCombobox({ students, value, onChange }: StudentComboboxPr
               {students.map((student) => (
                 <CommandItem
                   key={student.id}
-                  value={`${student.name} ${student.registration}`}
+                  value={`${student.name} ${student.registration} ${student.class}`}
                   onSelect={() => {
                     onChange(student.id)
                     setOpen(false)
@@ -71,7 +71,7 @@ export function StudentCombobox({ students, value, onChange }: StudentComboboxPr
                   />
                   <div>
                     <p>{student.name}</p>
-                    <p className="text-xs text-muted-foreground">RA: {student.registration}</p>
+                    <p className="text-xs text-muted-foreground">RA: {student.registration} | Turma: {student.class}</p>
                   </div>
                 </CommandItem>
               ))}
