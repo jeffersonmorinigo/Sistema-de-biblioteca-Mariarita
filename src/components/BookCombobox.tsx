@@ -73,9 +73,9 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
         <Command>
-          {/* Melhorando o placeholder para guiar a busca */}
+          {/* O CommandInput agora está fixo no topo */}
           <CommandInput placeholder="Buscar por Título, Autor, Código ou Prateleira..." />
-          <CommandList>
+          <CommandList className="max-h-[300px] overflow-y-auto"> {/* Definindo altura máxima e rolagem */}
             <CommandEmpty>Nenhum livro disponível encontrado.</CommandEmpty>
             <CommandGroup>
               {availableBooks.map((book) => (
