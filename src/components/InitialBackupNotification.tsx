@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Download } from 'lucide-react';
-import { generateAndDownloadJsonBackup } from '@/lib/backupUtils';
+import { generateAndDownloadJsonBackup, generateAndDownloadSqlBackup } from '@/lib/backupUtils';
 import { showSuccess, showError } from '@/utils/toast';
 
 const SESSION_KEY = 'initialBackupDone';
@@ -29,13 +29,14 @@ const InitialBackupNotification = () => {
     setIsProcessing(true);
     setBackupAttempted(true);
     
-    const success = generateAndDownloadJsonBackup('backup_inicial');
+    const jsonSuccess = generateAndDownloadJsonBackup('backup_inicial');
+    const sqlSuccess = generateAndDownloadSqlBackup('backup_inicial');
     
-    if (success) {
-      showSuccess('Backup inicial gerado com sucesso! Verifique sua pasta de Downloads.');
+    if (jsonSuccess && sqlSuccess) {
+      showSuccess('Backups JSON e SQL gerados com sucesso! Verifique sua pasta de Downloads.');
       sessionStorage.setItem(SESSION_KEY, 'true');
     } else {
-      showError('Falha ao gerar o backup inicial. Tente novamente na página de Backup.');
+      showError('Falha ao gerar um ou ambos os backups iniciais. Tente novamente na página de Backup.');
     }
     
     setIsProcessing(false);
@@ -47,7 +48,6 @@ const InitialBackupNotification = () => {
   const handleClose = () => {
     if (!backupAttempted) {
         // Se o usuário fechar sem tentar, marcamos como feito para não incomodar
-        // Mas idealmente, forçamos a execução ou o reconhecimento.
         sessionStorage.setItem(SESSION_KEY, 'true');
     }
     setIsOpen(false);
@@ -67,7 +67,7 @@ const InitialBackupNotification = () => {
         </DialogHeader>
         <div className="py-4 space-y-2">
             <p className="text-sm text-muted-foreground">
-                Ao clicar em "Gerar Backup", um arquivo JSON contendo todos os dados será salvo na sua pasta de Downloads.
+                Ao clicar em "Gerar Backups", dois arquivos (JSON e SQL) contendo todos os dados serão salvos na sua pasta de Downloads.
             </p>
             <p className="text-sm font-medium text-red-600 dark:text-red-400">
                 Recomendamos fortemente que você faça isso agora.
@@ -79,7 +79,7 @@ const InitialBackupNotification = () => {
           </Button>
           <Button type="button" onClick={handleRunBackup} disabled={isProcessing}>
             <Download className="mr-2 h-4 w-4" />
-            {isProcessing ? 'Gerando...' : 'Gerar Backup Agora'}
+            {isProcessing ? 'Gerando...' : 'Gerar Backups Agora'}
           </Button>
         </DialogFooter>
       </DialogContent>
