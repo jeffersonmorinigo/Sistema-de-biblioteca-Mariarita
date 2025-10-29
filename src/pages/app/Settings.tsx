@@ -8,8 +8,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { showSuccess, showError } from '@/utils/toast';
-import { Trash2 } from 'lucide-react';
-import { Book, Student } from '@/lib/types';
+import { Trash2, Eraser, AlertTriangle } from 'lucide-react';
+import { Book, Student, Loan } from '@/lib/types';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const settingsSchema = z.object({
   schoolName: z.string().min(1, 'O nome da escola é obrigatório.'),
@@ -34,13 +46,14 @@ const SettingsPage = () => {
   const [schoolName, setSchoolName] = useLocalStorage('schoolName', '');
   const [categories, setCategories] = useLocalStorage<string[]>('book_categories', ['GERAL']);
   const [shelves, setShelves] = useLocalStorage<string[]>('book_shelves', ['N/A']);
-  const [classes, setClasses] = useLocalStorage<string[]>('student_classes', defaultClasses); // New: Classes state
+  const [classes, setClasses] = useLocalStorage<string[]>('student_classes', defaultClasses);
   const [books] = useLocalStorage<Book[]>('books', []);
   const [students] = useLocalStorage<Student[]>('students', []);
+  const [loans, setLoans] = useLocalStorage<Loan[]>('loans', []);
 
   const [newCategory, setNewCategory] = useState('');
   const [newShelf, setNewShelf] = useState('');
-  const [newClass, setNewClass] = useState(''); // New: New class input state
+  const [newClass, setNewClass] = useState('');
 
   const {
     register,
@@ -106,7 +119,6 @@ const SettingsPage = () => {
     showSuccess(`Prateleira "${shelfToDelete}" excluída!`);
   };
 
-  // New: Class management functions
   const handleAddClass = () => {
     const formattedClass = newClass.trim().toUpperCase();
     if (!formattedClass) {
@@ -129,6 +141,16 @@ const SettingsPage = () => {
     }
     setClasses(classes.filter(c => c !== classToDelete));
     showSuccess(`Turma "${classToDelete}" excluída!`);
+  };
+
+  const handleClearLoanHistory = () => {
+    const activeLoans = loans.filter(loan => !loan.returnDate);
+    if (activeLoans.length === loans.length) {
+      showError('Nenhum empréstimo devolvido para limpar.');
+      return;
+    }
+    setLoans(activeLoans);
+    showSuccess('Histórico de empréstimos limpo com sucesso!');
   };
 
   return (
@@ -220,7 +242,6 @@ const SettingsPage = () => {
           </CardContent>
         </Card>
 
-        {/* New: Card for Class Management */}
         <Card>
           <CardHeader>
             <CardTitle>Gerenciamento de Turmas</CardTitle>
@@ -248,6 +269,46 @@ const SettingsPage = () => {
                 </div>
               ))}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Limpar Histórico de Empréstimos</CardTitle>
+            <CardDescription>
+              Remove todos os registros de empréstimos que já foram devolvidos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Atenção!</AlertTitle>
+              <AlertDescription>
+                Esta ação é irreversível e removerá permanentemente todos os empréstimos concluídos. Os empréstimos ativos não serão afetados.
+              </AlertDescription>
+            </Alert>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="mt-4 w-full">
+                  <Eraser className="mr-2 h-4 w-4" />
+                  Limpar Histórico
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirmar Limpeza de Histórico</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Você tem certeza que deseja apagar todos os registros de empréstimos devolvidos?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleClearLoanHistory}>
+                    Sim, Limpar Histórico
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardContent>
         </Card>
       </div>

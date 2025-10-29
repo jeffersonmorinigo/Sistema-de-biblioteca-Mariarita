@@ -16,18 +16,7 @@ import {
   Dialog,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { PlusCircle, Trash2, Undo2, FileText, Search } from 'lucide-react';
+import { PlusCircle, Undo2, FileText, Search } from 'lucide-react';
 import LoanForm, { LoanFormData } from '@/components/LoanForm';
 import { showSuccess, showError } from '@/utils/toast';
 import { format, isAfter } from 'date-fns';
@@ -109,11 +98,6 @@ const LoansPage = () => {
   const handleReturnLoan = (loanId: string) => {
     setLoans(loans.map(l => l.id === loanId ? { ...l, returnDate: new Date().toISOString() } : l));
     showSuccess('Devolução registrada com sucesso!');
-  };
-
-  const handleDeleteLoan = (loanId: string) => {
-    setLoans(loans.filter(l => l.id !== loanId));
-    showSuccess('Registro de empréstimo excluído!');
   };
 
   const handleGenerateReport = () => {
@@ -309,27 +293,6 @@ const LoansPage = () => {
                           Devolver
                         </Button>
                       )}
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="ml-2 text-red-500 hover:text-red-600">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Essa ação não pode ser desfeita. Isso excluirá permanentemente o registro.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteLoan(loan.id)}>
-                              Excluir
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
                     </TableCell>
                   </TableRow>
                 );
