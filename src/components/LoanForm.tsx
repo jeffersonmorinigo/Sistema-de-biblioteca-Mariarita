@@ -63,14 +63,14 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
   };
 
   return (
-    <DialogContent className="sm:max-w-[600px]"> {/* Aumentando a largura para acomodar o grid */}
+    <DialogContent className="sm:max-w-[600px]">
       <DialogHeader>
         <DialogTitle>Registrar Novo Empréstimo</DialogTitle>
       </DialogHeader>
       <form onSubmit={handleSubmit(handleFormSubmit)}>
-        <div className="grid gap-5 py-4 sm:grid-cols-2 sm:gap-6">
-          {/* Coluna 1: Aluno */}
-          <div className="space-y-2 sm:col-span-2">
+        <div className="grid gap-5 py-4 grid-cols-1 sm:grid-cols-2">
+          {/* Aluno ocupa a primeira coluna */}
+          <div className="space-y-2 sm:col-span-1">
             <Label htmlFor="studentId">Aluno</Label>
             <Controller
               name="studentId"
@@ -89,8 +89,8 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
             {errors.studentId && <p className="text-red-500 text-sm mt-1">{errors.studentId.message}</p>}
           </div>
 
-          {/* Coluna 2: Livro */}
-          <div className="space-y-2 sm:col-span-2">
+          {/* Livro ocupa a segunda coluna */}
+          <div className="space-y-2 sm:col-span-1">
             <Label htmlFor="bookCode">Livro (Disponíveis)</Label>
             <Controller
               name="bookCode"
@@ -109,7 +109,7 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
             {errors.bookCode && <p className="text-red-500 text-sm mt-1">{errors.bookCode.message}</p>}
           </div>
 
-          {/* Coluna 3: Data de Devolução */}
+          {/* Data de Devolução ocupa a largura total em telas pequenas, ou a primeira coluna em telas grandes */}
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="expectedReturnDate">Data Prevista de Devolução</Label>
             <Controller

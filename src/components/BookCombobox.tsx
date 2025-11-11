@@ -55,7 +55,7 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
   const selectedBookTitle = useMemo(() => {
     if (!value) return "Selecione um livro disponível...";
     const book = books.find(b => b.code === value);
-    return book ? `${book.title} (Prateleira: ${book.shelf || 'N/A'})` : "Selecione um livro disponível...";
+    return book ? `${book.title} (Cód: ${book.code} | Prat: ${book.shelf || 'N/A'})` : "Selecione um livro disponível...";
   }, [value, books]);
 
   return (
@@ -73,19 +73,18 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
       </PopoverTrigger>
       <PopoverContent 
         className="w-[--radix-popover-trigger-width] p-0"
-        side="bottom" // Força a abertura para baixo
-        align="start" // Alinha à esquerda
+        side="bottom" 
+        align="start" 
       >
         <Command>
-          {/* O CommandInput agora está fixo no topo */}
-          <CommandInput placeholder="Buscar por Título, Autor, Código ou Prateleira..." />
-          <CommandList className="max-h-[300px] overflow-y-auto"> {/* Definindo altura máxima e rolagem */}
+          <CommandInput placeholder="Buscar por Título, Autor, Código, Prateleira..." />
+          <CommandList className="max-h-[300px] overflow-y-auto">
             <CommandEmpty>Nenhum livro disponível encontrado.</CommandEmpty>
             <CommandGroup>
               {availableBooks.map((book) => (
                 <CommandItem
                   key={book.id}
-                  // Adicionando categoria e tipo na busca
+                  // Valor de busca abrangente
                   value={`${book.title} ${book.author} ${book.shelf} ${book.code} ${book.isbn} ${book.category} ${book.bookType}`}
                   onSelect={() => {
                     onChange(book.code)

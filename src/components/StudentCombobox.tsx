@@ -50,28 +50,32 @@ export function StudentCombobox({ students, value, onChange }: StudentComboboxPr
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
         <Command>
-          <CommandInput placeholder="Buscar por nome..." />
-          <CommandList>
+          <CommandInput placeholder="Buscar por nome ou turma..." />
+          <CommandList className="max-h-[300px] overflow-y-auto">
             <CommandEmpty>Nenhum aluno encontrado.</CommandEmpty>
             <CommandGroup>
               {students.map((student) => (
                 <CommandItem
                   key={student.id}
-                  value={`${student.name} ${student.class}`}
+                  // Melhorando o valor de busca para incluir nome, turma e tipo
+                  value={`${student.name} ${student.class} ${student.type}`}
                   onSelect={() => {
                     onChange(student.id)
                     setOpen(false)
                   }}
+                  className="flex items-center justify-between space-x-2"
                 >
                   <Check
                     className={cn(
-                      "mr-2 h-4 w-4",
+                      "mr-2 h-4 w-4 flex-shrink-0",
                       value === student.id ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  <div>
-                    <p>{student.name}</p>
-                    <p className="text-xs text-muted-foreground">Turma: {student.class}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{student.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      Turma: {student.class} | Tipo: {student.type}
+                    </p>
                   </div>
                 </CommandItem>
               ))}
