@@ -9,7 +9,7 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    title: 'Sistema de Biblioteca', // Define o título da janela
+    title: 'Sistema de Empréstimo', // Define o título da janela
     autoHideMenuBar: true, // Oculta a barra de menu
     fullscreen: true, // Adicionado para iniciar em tela cheia
     webPreferences: {
