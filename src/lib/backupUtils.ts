@@ -2,7 +2,7 @@ import { format } from 'date-fns';
 
 const LOCAL_STORAGE_KEYS = [
   'books', 'students', 'loans', 'users', 
-  'schoolName', 'book_categories', 'student_classes', 'book_shelves',
+  'schoolName', 'book_categories', 'student_classes', 'book_shelves', 'book_types',
   'isAuthenticated'
 ];
 
@@ -94,6 +94,9 @@ export const generateAndDownloadSqlBackup = (prefix: string) => {
     }
     if (data.book_shelves) {
       sqlString += `INSERT INTO settings (key, value) VALUES ('book_shelves', ${escapeSql(JSON.stringify(data.book_shelves))});\n`;
+    }
+    if (data.book_types) {
+      sqlString += `INSERT INTO settings (key, value) VALUES ('book_types', ${escapeSql(JSON.stringify(data.book_types))});\n`;
     }
 
     const blob = new Blob([sqlString], { type: 'application/sql' });

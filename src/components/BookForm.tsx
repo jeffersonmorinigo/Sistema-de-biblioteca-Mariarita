@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/dialog';
 import { Book } from '@/lib/types';
 import { CategoryCombobox } from './CategoryCombobox';
-import { ShelfCombobox } from './ShelfCombobox'; // New: Import ShelfCombobox
+import { ShelfCombobox } from './ShelfCombobox';
+import { BookTypeCombobox } from './BookTypeCombobox'; // New: Import BookTypeCombobox
 
 const bookSchema = z.object({
   code: z.string().min(1, 'Código é obrigatório'),
@@ -21,9 +22,9 @@ const bookSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   author: z.string().min(1, 'Autor é obrigatório'),
   publisher: z.string().min(1, 'Editora é obrigatória'),
-  shelf: z.string().min(1, 'Prateleira é obrigatória'), // Shelf is now required
+  shelf: z.string().min(1, 'Prateleira é obrigatória'),
   category: z.string().min(1, 'Categoria é obrigatória'),
-  bookType: z.string().min(1, 'Tipo é obrigatório'),
+  bookType: z.string().min(1, 'Tipo é obrigatório'), // bookType is required
   quantity: z.coerce.number().min(1, 'A quantidade deve ser pelo menos 1'),
 });
 
@@ -34,10 +35,11 @@ interface BookFormProps {
   onSubmit: (data: BookFormData) => void;
   closeDialog: () => void;
   categories: string[];
-  shelves: string[]; // New: Pass shelves to BookForm
+  shelves: string[];
+  bookTypes: string[]; // New: Pass bookTypes to BookForm
 }
 
-const BookForm = ({ book, onSubmit, closeDialog, categories, shelves }: BookFormProps) => { // New: Receive shelves
+const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes }: BookFormProps) => { // New: Receive bookTypes
   const {
     register,
     handleSubmit,
@@ -118,7 +120,19 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves }: BookForm
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="bookType" className="text-right">Tipo</Label>
-            <Input id="bookType" {...register('bookType')} className="col-span-3 uppercase" />
+            <div className="col-span-3">
+              <Controller
+                name="bookType"
+                control={control}
+                render={({ field }) => (
+                  <BookTypeCombobox // Using BookTypeCombobox
+                    types={bookTypes}
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
+            </div>
             {errors.bookType && <p className="col-span-4 text-red-500 text-sm text-right">{errors.bookType.message}</p>}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
@@ -133,7 +147,7 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves }: BookForm
                 name="shelf"
                 control={control}
                 render={({ field }) => (
-                  <ShelfCombobox // New: Using ShelfCombobox
+                  <ShelfCombobox
                     shelves={shelves}
                     value={field.value}
                     onChange={field.onChange}

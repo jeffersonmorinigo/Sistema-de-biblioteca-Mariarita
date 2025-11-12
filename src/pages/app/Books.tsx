@@ -37,7 +37,8 @@ const BooksPage = () => {
   const [books, setBooks] = useLocalStorage<Book[]>('books', []);
   const [loans] = useLocalStorage<Loan[]>('loans', []);
   const [categories] = useLocalStorage<string[]>('book_categories', ['GERAL']);
-  const [shelves] = useLocalStorage<string[]>('book_shelves', ['N/A']); // New: Get shelves from local storage
+  const [shelves] = useLocalStorage<string[]>('book_shelves', ['N/A']);
+  const [bookTypes] = useLocalStorage<string[]>('book_types', ['PESQUISA', 'DIDÁTICO', 'LITERATURA']); // New: Get book types
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -60,7 +61,8 @@ const BooksPage = () => {
       book.author.toLowerCase().includes(lowerCaseSearchTerm) ||
       book.code.toLowerCase().includes(lowerCaseSearchTerm) ||
       book.isbn.toLowerCase().includes(lowerCaseSearchTerm) ||
-      book.shelf.toLowerCase().includes(lowerCaseSearchTerm) // Incluir busca por prateleira
+      book.shelf.toLowerCase().includes(lowerCaseSearchTerm) ||
+      book.bookType.toLowerCase().includes(lowerCaseSearchTerm) // Incluir busca por tipo
     );
   }, [books, searchTerm]);
 
@@ -135,7 +137,7 @@ const BooksPage = () => {
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
-            placeholder="Buscar por título, autor, código, prateleira..."
+            placeholder="Buscar por título, autor, código, prateleira, tipo..."
             className="pl-10"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -161,7 +163,6 @@ const BooksPage = () => {
                 Adicionar Livro
               </Button>
             </DialogTrigger>
-            {/* Pass shelves to BookForm */}
             <BookForm 
               key={selectedBook?.id || 'new'}
               book={selectedBook} 
@@ -169,6 +170,7 @@ const BooksPage = () => {
               closeDialog={() => setIsAddDialogOpen(false)}
               categories={categories}
               shelves={shelves} 
+              bookTypes={bookTypes} // Passing bookTypes
             />
           </Dialog>
         </div>

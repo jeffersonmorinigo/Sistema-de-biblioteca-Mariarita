@@ -42,11 +42,15 @@ const defaultClasses = [
   '9º ANO A', '9º ANO B', '9º ANO C',
 ];
 
+const defaultBookTypes = ['PESQUISA', 'DIDÁTICO', 'LITERATURA'];
+
 const SettingsPage = () => {
   const [schoolName, setSchoolName] = useLocalStorage('schoolName', '');
   const [categories, setCategories] = useLocalStorage<string[]>('book_categories', ['GERAL']);
   const [shelves, setShelves] = useLocalStorage<string[]>('book_shelves', ['N/A']);
   const [classes, setClasses] = useLocalStorage<string[]>('student_classes', defaultClasses);
+  const [bookTypes, setBookTypes] = useLocalStorage<string[]>('book_types', defaultBookTypes); // New: Book Types state
+  
   const [books] = useLocalStorage<Book[]>('books', []);
   const [students] = useLocalStorage<Student[]>('students', []);
   const [loans, setLoans] = useLocalStorage<Loan[]>('loans', []);
@@ -54,6 +58,7 @@ const SettingsPage = () => {
   const [newCategory, setNewCategory] = useState('');
   const [newShelf, setNewShelf] = useState('');
   const [newClass, setNewClass] = useState('');
+  const [newBookType, setNewBookType] = useState(''); // New: Book Type input state
 
   const {
     register,
@@ -141,6 +146,30 @@ const SettingsPage = () => {
     }
     setClasses(classes.filter(c => c !== classToDelete));
     showSuccess(`Turma "${classToDelete}" excluída!`);
+  };
+  
+  const handleAddBookType = () => {
+    const formattedType = newBookType.trim().toUpperCase();
+    if (!formattedType) {
+      showError('O nome do tipo de livro não pode estar vazio.');
+      return;
+    }
+    if (bookTypes.includes(formattedType)) {
+      showError('Esse tipo de livro já existe.');
+      return;
+    }
+    setBookTypes([...bookTypes, formattedType].sort());
+    setNewBookType('');
+    showSuccess(`Tipo de livro "${formattedType}" adicionado!`);
+  };
+
+  const handleDeleteBookType = (typeToDelete: string) => {
+    if (books.some(book => book.bookType === typeToDelete)) {
+      showError('Não é possível excluir um tipo de livro que está em uso.');
+      return;
+    }
+    setBookTypes(bookTypes.filter(t => t !== typeToDelete));
+    showSuccess(`Tipo de livro "${typeToDelete}" excluído!`);
   };
 
   const handleClearLoanHistory = () => {
@@ -234,6 +263,37 @@ const SettingsPage = () => {
                 <div key={shelf} className="flex items-center justify-between rounded-md bg-muted p-2">
                   <span className="text-sm font-medium">{shelf}</span>
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteShelf(shelf)}>
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* Novo Card para Tipos de Livros */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Tipos de Livros</CardTitle>
+            <CardDescription>
+              Adicione ou remova tipos de livros (Ex: Pesquisa, Didático).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2 mb-4">
+              <Input
+                value={newBookType}
+                onChange={(e) => setNewBookType(e.target.value.toUpperCase())}
+                placeholder="Ex: PESQUISA"
+                onKeyDown={(e) => e.key === 'Enter' && handleAddBookType()}
+              />
+              <Button onClick={handleAddBookType}>Adicionar</Button>
+            </div>
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+              {bookTypes.map(type => (
+                <div key={type} className="flex items-center justify-between rounded-md bg-muted p-2">
+                  <span className="text-sm font-medium">{type}</span>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteBookType(type)}>
                     <Trash2 className="h-4 w-4 text-red-500" />
                   </Button>
                 </div>
