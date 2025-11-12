@@ -240,7 +240,9 @@ const LoansPage = () => {
                 Registrar Empréstimo
               </Button>
             </DialogTrigger>
+            {/* Adicionando key={isDialogOpen ? 'open' : 'closed'} para forçar a redefinição do estado interno do formulário */}
             <LoanForm 
+              key={isDialogOpen ? 'open' : 'closed'}
               students={students}
               books={books}
               onSubmit={handleAddLoan} 
