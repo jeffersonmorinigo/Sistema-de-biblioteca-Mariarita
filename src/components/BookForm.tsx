@@ -44,6 +44,7 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
     register,
     handleSubmit,
     control,
+    watch,
     formState: { errors },
   } = useForm<BookFormData>({
     resolver: zodResolver(bookSchema),
@@ -59,6 +60,12 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
       quantity: 1,
     },
   });
+  
+  // Watch the fields to ensure the Comboboxes re-render with the selected value
+  const watchedCategory = watch('category');
+  const watchedShelf = watch('shelf');
+  const watchedBookType = watch('bookType');
+
 
   const handleFormSubmit = (data: BookFormData) => {
     const transformedData = {
@@ -105,7 +112,7 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
                 render={({ field }) => (
                   <CategoryCombobox
                     categories={categories}
-                    value={field.value}
+                    value={watchedCategory} // Use watched value
                     onChange={field.onChange}
                   />
                 )}
@@ -125,9 +132,9 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
                 name="bookType"
                 control={control}
                 render={({ field }) => (
-                  <BookTypeCombobox // Using BookTypeCombobox
+                  <BookTypeCombobox
                     types={bookTypes}
-                    value={field.value}
+                    value={watchedBookType} // Use watched value
                     onChange={field.onChange}
                   />
                 )}
@@ -149,7 +156,7 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
                 render={({ field }) => (
                   <ShelfCombobox
                     shelves={shelves}
-                    value={field.value}
+                    value={watchedShelf} // Use watched value
                     onChange={field.onChange}
                   />
                 )}
