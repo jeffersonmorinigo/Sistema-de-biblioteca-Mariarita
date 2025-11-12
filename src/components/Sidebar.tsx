@@ -22,7 +22,7 @@ const Sidebar = () => {
           <Library className="w-8 h-8 text-primary" />
           <h1 className="text-2xl font-bold flex items-baseline">
             Biblioteca 
-            <span className="text-sm font-normal text-primary ml-1">2.0</span>
+            <span className="text-lg font-bold text-primary ml-1">2.0</span>
           </h1>
         </div>
         {schoolName && (
