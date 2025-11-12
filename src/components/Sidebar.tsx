@@ -20,7 +20,10 @@ const Sidebar = () => {
       <div className="flex flex-col items-center justify-center gap-2 mb-8 text-center">
         <div className="flex items-center gap-2">
           <Library className="w-8 h-8 text-primary" />
-          <h1 className="text-2xl font-bold">Biblioteca</h1>
+          <h1 className="text-2xl font-bold flex items-baseline">
+            Biblioteca 
+            <span className="text-sm font-normal text-primary ml-1">2.0</span>
+          </h1>
         </div>
         {schoolName && (
           <p className="text-sm text-muted-foreground px-2">{schoolName}</p>
