@@ -5,7 +5,7 @@ import { Loan } from '@/lib/types';
 import { isAfter } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
-import LogoutButton from '@/components/LogoutButton'; // Importando o novo componente
+import LogoutButton from '@/components/LogoutButton';
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const [loans] = useLocalStorage<Loan[]>('loans', []);
@@ -19,36 +19,36 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       setOverdueCount(overdue.length);
     };
 
-    // Check immediately on load
     checkForOverdueLoans();
-
-    // Set up an interval to check every 2 hours
-    const intervalId = setInterval(checkForOverdueLoans, 2 * 60 * 60 * 1000); // 2 hours in milliseconds
-
-    // Clean up the interval when the component unmounts
+    const intervalId = setInterval(checkForOverdueLoans, 2 * 60 * 60 * 1000);
     return () => clearInterval(intervalId);
-  }, [loans]); // Rerun effect if loans data changes
+  }, [loans]);
 
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto relative">
-        {/* Botão de Logout no canto superior direito */}
+      <main className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 relative">
         <div className="absolute top-4 right-4 z-10">
           <LogoutButton />
         </div>
         
-        {overdueCount > 0 && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle className="font-bold text-lg">Atenção: Empréstimos Atrasados!</AlertTitle>
-            <AlertDescription>
-              Existem <strong>{overdueCount} empréstimo(s)</strong> com a data de devolução vencida. 
-              Por favor, verifique a página de <a href="/loans" className="underline font-semibold">Empréstimos</a> para tomar as devidas providências.
-            </AlertDescription>
-          </Alert>
-        )}
-        {children}
+        <div className="flex-grow overflow-y-auto">
+          {overdueCount > 0 && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle className="font-bold text-lg">Atenção: Empréstimos Atrasados!</AlertTitle>
+              <AlertDescription>
+                Existem <strong>{overdueCount} empréstimo(s)</strong> com a data de devolução vencida. 
+                Por favor, verifique a página de <a href="/loans" className="underline font-semibold">Empréstimos</a> para tomar as devidas providências.
+              </AlertDescription>
+            </Alert>
+          )}
+          {children}
+        </div>
+
+        <footer className="text-center text-sm text-muted-foreground pt-4 flex-shrink-0">
+          © 2025 Desenvolvido por Jefferson Morinigo - Todos os direitos reservados.
+        </footer>
       </main>
     </div>
   );
