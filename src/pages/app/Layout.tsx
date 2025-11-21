@@ -45,10 +45,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           )}
           {children}
         </div>
-
-        <footer className="text-center text-sm text-muted-foreground pt-4 flex-shrink-0">
-          © 2025 Desenvolvido por Jefferson Morinigo - Todos os direitos reservados.
-        </footer>
       </main>
     </div>
   );

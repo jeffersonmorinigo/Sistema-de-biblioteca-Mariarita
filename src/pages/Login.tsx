@@ -24,7 +24,7 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+    <div className="relative min-h-screen flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
@@ -65,6 +65,9 @@ const LoginPage = () => {
           </form>
         </CardContent>
       </Card>
+      <footer className="absolute bottom-4 text-center text-sm text-muted-foreground">
+        © 2025 Desenvolvido por Jefferson Morinigo - Todos os direitos reservados.
+      </footer>
     </div>
   );
 };
