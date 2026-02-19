@@ -9,9 +9,9 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    title: 'Sistema de Empréstimo', // Define o título da janela
+    title: 'Sistema de Biblioteca', // Define o título da janela
     autoHideMenuBar: true, // Oculta a barra de menu
-    // fullscreen: true, // REMOVIDO: Usaremos maximize() para manter a barra de título
+    fullscreen: true, // Adicionado para iniciar em tela cheia
     webPreferences: {
       // Desabilita a integração de node no renderizador por segurança,
       // a menos que você realmente precise dela e saiba os riscos.
@@ -31,9 +31,6 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
-  
-  // Maximiza a janela após o carregamento para garantir que a barra de título permaneça visível
-  mainWindow.maximize();
 }
 
 // Este método será chamado quando o Electron terminar a inicialização
