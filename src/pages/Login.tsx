@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Library } from 'lucide-react';
 import { showError } from '@/utils/toast';
 
 const LoginPage = () => {
@@ -28,7 +27,11 @@ const LoginPage = () => {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <Library className="w-12 h-12 text-blue-600" />
+            <img
+              src="/logo.png"
+              alt="Logo Sistema de Gestão Escolar"
+              className="w-28 h-28 object-contain"
+            />
           </div>
           <CardTitle className="text-2xl">Sistema de Biblioteca</CardTitle>
           <CardDescription>Faça login para acessar o painel</CardDescription>
