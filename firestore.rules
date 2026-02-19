@@ -1,9 +1,33 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow authenticated users full access
-    match /{document=**} {
+    // Regras gerais para as coleções do sistema
+    // Nota: Atualmente o sistema usa autenticação customizada via dados na coleção 'users'.
+    // Para segurança máxima, recomenda-se usar o Firebase Auth nativo no futuro.
+    
+    match /users/{userId} {
       allow read, write: if true;
+    }
+    
+    match /books/{bookId} {
+      allow read, write: if true;
+    }
+    
+    match /students/{studentId} {
+      allow read, write: if true;
+    }
+    
+    match /loans/{loanId} {
+      allow read, write: if true;
+    }
+    
+    match /settings/{settingsId} {
+      allow read, write: if true;
+    }
+    
+    // Nega acesso a qualquer outra coleção não especificada
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

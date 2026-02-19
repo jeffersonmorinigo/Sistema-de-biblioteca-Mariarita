@@ -136,6 +136,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await deleteDocument('users', userId);
   };
 
+  // --- AUTO LOGOFF LOGIC (40 MINUTES INACTIVITY) ---
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const INACTIVITY_LIMIT = 40 * 60 * 1000; // 40 minutos
+    let timeoutId: NodeJS.Timeout;
+
+    const resetTimer = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        console.warn('[Auth] Logoff por inatividade (40 min).');
+        logout();
+      }, INACTIVITY_LIMIT);
+    };
+
+    // Eventos que resetam o cronômetro
+    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+
+    // Inicia o timer e adiciona listeners
+    resetTimer();
+    events.forEach(event => document.addEventListener(event, resetTimer));
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      events.forEach(event => document.removeEventListener(event, resetTimer));
+    };
+  }, [isAuthenticated]);
+
   return (
     <AuthContext.Provider value={{ isAuthenticated, users, usersLoaded, login, logout, addUser, deleteUser }}>
       {children}
