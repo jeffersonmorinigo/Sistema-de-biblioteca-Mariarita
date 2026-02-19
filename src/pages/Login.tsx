@@ -30,16 +30,9 @@ const LoginPage = () => {
         <CardHeader className="text-center pt-8">
           <div className="flex justify-center mb-6">
             <img
-              src="logo.jpeg"
+              src="logo.png"
               alt="Logo Sistema de Gestão Escolar"
               className="w-32 h-32 object-contain"
-              onError={(e) => {
-                // Fallback a logo.png se logo.jpeg falhar
-                const target = e.target as HTMLImageElement;
-                if (target.src.includes('logo.jpeg')) {
-                  target.src = 'logo.png';
-                }
-              }}
             />
           </div>
           <CardTitle className="text-3xl font-bold tracking-tight">Sistema de Biblioteca</CardTitle>

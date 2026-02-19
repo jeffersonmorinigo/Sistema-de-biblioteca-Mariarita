@@ -123,38 +123,68 @@ export const generateAndDownloadSqlBackup = async (prefix: string) => {
  */
 export const restoreFromBackup = async (backupData: any) => {
   try {
-    // 1. Restaurar Configurações
+    if (!backupData || typeof backupData !== 'object') {
+      throw new Error('Dados de backup inválidos: não é um objeto.');
+    }
+
+    console.log('[Restore] Iniciando restauração...', Object.keys(backupData));
+
+    // 1. Restaurar Configurações (com suporte a nomes antigos se existirem)
     const settings: any = {};
     if (backupData.schoolName) settings.schoolName = backupData.schoolName;
-    if (backupData.book_categories) settings.book_categories = backupData.book_categories;
-    if (backupData.student_classes) settings.student_classes = backupData.student_classes;
-    if (backupData.book_shelves) settings.book_shelves = backupData.book_shelves;
-    if (backupData.book_types) settings.book_types = backupData.book_types;
+
+    // Mapeamos chaves do backup para garantir compatibilidade com versões antigas
+    settings.book_categories = backupData.book_categories || backupData.categories || backupData.bookCategories || [];
+    settings.student_classes = backupData.student_classes || backupData.classes || backupData.studentClasses || [];
+    settings.book_shelves = backupData.book_shelves || backupData.shelves || backupData.bookShelves || [];
+    settings.book_types = backupData.book_types || backupData.bookTypes || [];
 
     await updateSettings(settings);
+    console.log('[Restore] Configurações processadas.');
 
     // 2. Restaurar Coleções (Limpar e Adicionar)
     const collectionsToRestore = ['books', 'students', 'loans', 'users'];
 
     for (const colName of collectionsToRestore) {
-      if (backupData[colName] && Array.isArray(backupData[colName])) {
-        // Obter todos os IDs atuais e deletar
+      const items = backupData[colName];
+      if (items && Array.isArray(items)) {
+        console.log(`[Restore] Processando coleção "${colName}" (${items.length} itens)...`);
+
+        // Limpar dados existentes
         const currentData = await getAll(colName);
-        for (const item of currentData) {
-          await deleteDocument(colName, (item as any).id);
+        if (currentData.length > 0) {
+          console.log(`[Restore] Removendo ${currentData.length} itens antigos de "${colName}"...`);
+          for (const item of currentData) {
+            try {
+              await deleteDocument(colName, (item as any).id);
+            } catch (delErr) {
+              console.warn(`[Restore] Erro ao deletar doc em ${colName}:`, delErr);
+            }
+          }
         }
 
-        // Adicionar novos dados
-        for (const item of backupData[colName]) {
-          const { id, ...dataWithoutId } = item;
-          await addDocument(colName, dataWithoutId);
+        // Adicionar novos dados do backup
+        let addedCount = 0;
+        for (const item of items) {
+          try {
+            if (typeof item !== 'object') continue;
+            const { id, ...dataWithoutId } = item;
+            await addDocument(colName, dataWithoutId);
+            addedCount++;
+          } catch (addErr) {
+            console.error(`[Restore] Erro ao adicionar doc em ${colName}:`, addErr);
+          }
         }
+        console.log(`[Restore] Coleção "${colName}" finalizada. ${addedCount} itens adicionados.`);
+      } else {
+        console.log(`[Restore] Coleção "${colName}" não encontrada no backup ou formato inválido.`);
       }
     }
 
+    console.log('[Restore] Processo de restauração finalizado com sucesso.');
     return true;
-  } catch (error) {
-    console.error('Erro ao restaurar backup no Firestore:', error);
-    throw error;
+  } catch (error: any) {
+    console.error('[Restore] Erro crítico ao restaurar backup no Firestore:', error);
+    throw new Error(`Falha na restauração: ${error.message || 'Erro desconhecido'}`);
   }
 };

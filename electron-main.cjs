@@ -11,7 +11,7 @@ function createWindow() {
     minHeight: 600,
     title: 'Sistema de Biblioteca', // Define o título da janela
     autoHideMenuBar: true, // Oculta a barra de menu
-    fullscreen: true, // Adicionado para iniciar em tela cheia
+    icon: path.join(__dirname, 'public', 'logo.png'), // Ícone da janela
     webPreferences: {
       // Desabilita a integração de node no renderizador por segurança,
       // a menos que você realmente precise dela e saiba os riscos.
@@ -20,6 +20,8 @@ function createWindow() {
       preload: path.join(__dirname, 'electron', 'preload.js'), // Adicionado o script preload
     },
   });
+
+  mainWindow.maximize(); // Abre maximizado com os botões visíveis
 
   // Carrega a aplicação React.
   // Em desenvolvimento, carrega do servidor Vite.
