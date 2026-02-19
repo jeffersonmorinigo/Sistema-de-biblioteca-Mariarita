@@ -54,27 +54,41 @@ const BackupPage = () => {
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
-        const backupData = JSON.parse(event.target?.result as string);
+        const content = event.target?.result as string;
+        if (!content || !content.trim().startsWith('{')) {
+          throw new Error('O arquivo selecionado não parece ser um backup JSON válido.');
+        }
 
-        // Simple verification - checking if it's a backup from this system
-        const possibleKeys = ['books', 'students', 'loans', 'users', 'schoolName'];
-        const hasSomeKeys = possibleKeys.some(key => backupData.hasOwnProperty(key));
+        const backupData = JSON.parse(content);
 
-        if (!hasSomeKeys) {
-          showError('Arquivo de backup inválido ou corrompido.');
+        // Validação básica: deve ter pelo menos alguma chave conhecida (nova ou antiga)
+        const knownKeys = [
+          'books', 'students', 'loans', 'users', 'schoolName',
+          'livros', 'alunos', 'emprestimos', 'usuarios', 'categoriasLivros'
+        ];
+        const hasData = knownKeys.some(key => backupData.hasOwnProperty(key));
+
+        if (!hasData) {
+          showError('Arquivo de backup não reconhecido. Certifique-se de que é um backup do sistema de biblioteca.');
           setIsProcessing(false);
           return;
         }
 
+        console.log('[UI] Iniciando restauração do arquivo:', restoreFile.name);
         await restoreFromBackup(backupData);
 
-        showSuccess('Backup restaurado com sucesso! A página será recarregada.');
+        showSuccess('Carga de dados concluída com sucesso! Sincronizando com a nuvem...');
+
+        // Pequeno delay para garantir que o Firestore processou tudo antes do reload
         setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-      } catch (error) {
+          showSuccess('Sistema pronto! Recarregando...');
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+        }, 1500);
+      } catch (error: any) {
         console.error('Erro ao restaurar backup:', error);
-        showError('Ocorreu um erro ao restaurar o backup. Verifique o arquivo.');
+        showError(`Falha na restauração: ${error.message || 'Verifique o formato do arquivo'}`);
         setIsProcessing(false);
       }
     };

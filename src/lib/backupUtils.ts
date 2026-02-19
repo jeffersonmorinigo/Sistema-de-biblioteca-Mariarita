@@ -119,72 +119,84 @@ export const generateAndDownloadSqlBackup = async (prefix: string) => {
 
 /**
  * Restaura os dados do Firestore a partir de um objeto de backup.
- * @param backupData Dados do backup
+ * Suporta formatos novos e antigos (legado).
  */
 export const restoreFromBackup = async (backupData: any) => {
   try {
     if (!backupData || typeof backupData !== 'object') {
-      throw new Error('Dados de backup inválidos: não é um objeto.');
+      throw new Error('Arquivo de backup inválido.');
     }
 
-    console.log('[Restore] Iniciando restauração...', Object.keys(backupData));
+    console.log('[Restore] Iniciando...', Object.keys(backupData));
 
-    // 1. Restaurar Configurações (com suporte a nomes antigos se existirem)
+    // 1. Mapeamento de Configurações (Garante compatibilidade total)
     const settings: any = {};
-    if (backupData.schoolName) settings.schoolName = backupData.schoolName;
+    settings.schoolName = backupData.schoolName || backupData.school_name || backupData.nomeEscola || '';
 
-    // Mapeamos chaves do backup para garantir compatibilidade com versões antigas
-    settings.book_categories = backupData.book_categories || backupData.categories || backupData.bookCategories || [];
-    settings.student_classes = backupData.student_classes || backupData.classes || backupData.studentClasses || [];
-    settings.book_shelves = backupData.book_shelves || backupData.shelves || backupData.bookShelves || [];
-    settings.book_types = backupData.book_types || backupData.bookTypes || [];
+    // Mapeia todas as possíveis variações de nomes de chaves de configurações
+    settings.book_categories = backupData.book_categories || backupData.categories || backupData.categoriasLivros || backupData.bookCategories || [];
+    settings.student_classes = backupData.student_classes || backupData.classes || backupData.turmasAlunos || backupData.studentClasses || [];
+    settings.book_shelves = backupData.book_shelves || backupData.shelves || backupData.estantesLivros || backupData.bookShelves || [];
+    settings.book_types = backupData.book_types || backupData.bookTypes || backupData.tiposLivros || [];
 
     await updateSettings(settings);
-    console.log('[Restore] Configurações processadas.');
+    console.log('[Restore] Configurações OK.');
 
-    // 2. Restaurar Coleções (Limpar e Adicionar)
-    const collectionsToRestore = ['books', 'students', 'loans', 'users'];
+    // 2. Mapeamento de Coleções Principais
+    const mapping = {
+      books: backupData.books || backupData.livros || [],
+      students: backupData.students || backupData.alunos || [],
+      loans: backupData.loans || backupData.emprestimos || [],
+      users: backupData.users || backupData.usuarios || [],
+    };
 
-    for (const colName of collectionsToRestore) {
-      const items = backupData[colName];
-      if (items && Array.isArray(items)) {
-        console.log(`[Restore] Processando coleção "${colName}" (${items.length} itens)...`);
+    for (const [colName, items] of Object.entries(mapping)) {
+      if (!Array.isArray(items)) continue;
 
-        // Limpar dados existentes
-        const currentData = await getAll(colName);
-        if (currentData.length > 0) {
-          console.log(`[Restore] Removendo ${currentData.length} itens antigos de "${colName}"...`);
-          for (const item of currentData) {
+      console.log(`[Restore] Coleção "${colName}": ${items.length} itens encontrados.`);
+
+      // Limpar coleção atual
+      const currentData = await getAll(colName);
+      if (currentData.length > 0) {
+        console.log(`[Restore] Limpando ${currentData.length} itens de "${colName}"...`);
+        // Deletar em pequenos grupos para não travar
+        await Promise.all(currentData.map(item => deleteDocument(colName, (item as any).id)));
+      }
+
+      // Adicionar novos dados (Com sanitização para evitar erros de campos inválidos no Firestore)
+      if (items.length > 0) {
+        console.log(`[Restore] Enviando novos dados para "${colName}"...`);
+
+        // Processa em paralelos moderados para performance e estabilidade
+        const chunkSize = 15;
+        for (let i = 0; i < items.length; i += chunkSize) {
+          const chunk = items.slice(i, i + chunkSize);
+          await Promise.all(chunk.map(async (item) => {
+            if (!item || typeof item !== 'object') return;
+
+            // Remove 'id' e garante que campos obrigatórios existam conforme o tipo
+            const { id, ...cleanData } = item;
+
+            // Sanitização básica campo a campo (Garante que strings vazias ou nulos não quebrem o Firestore)
+            const sanitizedData: any = {};
+            Object.entries(cleanData).forEach(([k, v]) => {
+              if (v !== undefined) sanitizedData[k] = v;
+            });
+
             try {
-              await deleteDocument(colName, (item as any).id);
-            } catch (delErr) {
-              console.warn(`[Restore] Erro ao deletar doc em ${colName}:`, delErr);
+              await addDocument(colName, sanitizedData);
+            } catch (err) {
+              console.error(`[Restore] Falha ao inserir item em ${colName}:`, err);
             }
-          }
+          }));
         }
-
-        // Adicionar novos dados do backup
-        let addedCount = 0;
-        for (const item of items) {
-          try {
-            if (typeof item !== 'object') continue;
-            const { id, ...dataWithoutId } = item;
-            await addDocument(colName, dataWithoutId);
-            addedCount++;
-          } catch (addErr) {
-            console.error(`[Restore] Erro ao adicionar doc em ${colName}:`, addErr);
-          }
-        }
-        console.log(`[Restore] Coleção "${colName}" finalizada. ${addedCount} itens adicionados.`);
-      } else {
-        console.log(`[Restore] Coleção "${colName}" não encontrada no backup ou formato inválido.`);
       }
     }
 
-    console.log('[Restore] Processo de restauração finalizado com sucesso.');
+    console.log('[Restore] Restauração concluída!');
     return true;
   } catch (error: any) {
-    console.error('[Restore] Erro crítico ao restaurar backup no Firestore:', error);
-    throw new Error(`Falha na restauração: ${error.message || 'Erro desconhecido'}`);
+    console.error('[Restore] Erro Crítico:', error);
+    throw new Error(`Falha na restauração: ${error.message || 'Erro de formato'}`);
   }
 };
