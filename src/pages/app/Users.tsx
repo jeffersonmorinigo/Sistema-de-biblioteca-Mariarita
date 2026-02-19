@@ -32,27 +32,38 @@ const UsersPage = () => {
   const { users, addUser, deleteUser } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const handleAddUser = (data: UserFormData) => {
+  const handleAddUser = async (data: UserFormData) => {
     // Check if email already exists
     if (users.some(user => user.email === data.email)) {
       showError('Este email já está em uso.');
       return;
     }
-    addUser({
-      name: data.name,
-      email: data.email,
-      password: data.password,
-    });
-    showSuccess('Usuário adicionado com sucesso!');
+    try {
+      await addUser({
+        name: data.name,
+        email: data.email,
+        password: data.password,
+      });
+      showSuccess('Usuário adicionado com sucesso!');
+      setIsDialogOpen(false);
+    } catch (error) {
+      showError('Erro ao adicionar usuário.');
+      console.error(error);
+    }
   };
 
-  const handleDeleteUser = (userId: string) => {
+  const handleDeleteUser = async (userId: string) => {
     if (users.length <= 1) {
       showError('Não é possível excluir o último usuário.');
       return;
     }
-    deleteUser(userId);
-    showSuccess('Usuário excluído com sucesso!');
+    try {
+      await deleteUser(userId);
+      showSuccess('Usuário excluído com sucesso!');
+    } catch (error) {
+      showError('Erro ao excluir usuário.');
+      console.error(error);
+    }
   };
 
   return (
@@ -66,8 +77,8 @@ const UsersPage = () => {
               Adicionar Usuário
             </Button>
           </DialogTrigger>
-          <UserForm 
-            onSubmit={handleAddUser} 
+          <UserForm
+            onSubmit={handleAddUser}
             closeDialog={() => setIsDialogOpen(false)}
           />
         </Dialog>

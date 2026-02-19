@@ -1,24 +1,30 @@
 import { format } from 'date-fns';
+import { getAll, getSettings, updateSettings, addDocument, deleteDocument } from './firestoreService';
+import { Book, Student, Loan, User } from './types';
 
-const LOCAL_STORAGE_KEYS = [
-  'books', 'students', 'loans', 'users', 
-  'schoolName', 'book_categories', 'student_classes', 'book_shelves', 'book_types',
-  'isAuthenticated'
-];
+/**
+ * Coleta todos os dados do Firestore para backup.
+ */
+const getAllData = async () => {
+  const [books, students, loans, users, settings] = await Promise.all([
+    getAll('books'),
+    getAll('students'),
+    getAll('loans'),
+    getAll('users'),
+    getSettings(),
+  ]);
 
-const getAllData = () => {
-  const data: { [key: string]: any } = {};
-  LOCAL_STORAGE_KEYS.forEach(key => {
-    const item = localStorage.getItem(key);
-    if (item) {
-      try {
-        data[key] = JSON.parse(item);
-      } catch (e) {
-        console.warn(`Could not parse localStorage item: ${key}`);
-      }
-    }
-  });
-  return data;
+  return {
+    books,
+    students,
+    loans,
+    users,
+    schoolName: settings.schoolName,
+    book_categories: settings.book_categories,
+    student_classes: settings.student_classes,
+    book_shelves: settings.book_shelves,
+    book_types: settings.book_types,
+  };
 };
 
 const escapeSql = (str: any) => {
@@ -27,13 +33,11 @@ const escapeSql = (str: any) => {
 };
 
 /**
- * Gera e força o download de um arquivo de backup JSON.
- * @param prefix Prefixo do nome do arquivo (ex: 'backup_inicial', 'backup_manual')
- * @returns true se o download foi iniciado, false em caso de erro.
+ * Gera e força o download de um arquivo de backup JSON vindo do Firestore.
  */
-export const generateAndDownloadJsonBackup = (prefix: string) => {
+export const generateAndDownloadJsonBackup = async (prefix: string) => {
   try {
-    const backupData = getAllData();
+    const backupData = await getAllData();
     const jsonString = JSON.stringify(backupData, null, 2);
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -47,20 +51,18 @@ export const generateAndDownloadJsonBackup = (prefix: string) => {
     URL.revokeObjectURL(url);
     return true;
   } catch (error) {
-    console.error('Erro ao gerar backup JSON:', error);
+    console.error('Erro ao gerar backup JSON do Firestore:', error);
     return false;
   }
 };
 
 /**
- * Gera e força o download de um arquivo de backup SQL.
- * @param prefix Prefixo do nome do arquivo (ex: 'backup_inicial', 'backup_manual')
- * @returns true se o download foi iniciado, false em caso de erro.
+ * Gera e força o download de um arquivo de backup SQL vindo do Firestore.
  */
-export const generateAndDownloadSqlBackup = (prefix: string) => {
+export const generateAndDownloadSqlBackup = async (prefix: string) => {
   try {
-    const data = getAllData();
-    let sqlString = `-- Backup do Sistema de Biblioteca\n`;
+    const data = await getAllData();
+    let sqlString = `-- Backup do Sistema de Biblioteca (Firestore)\n`;
     sqlString += `-- Gerado em: ${new Date().toISOString()}\n\n`;
 
     // Helper to generate table SQL
@@ -83,21 +85,20 @@ export const generateAndDownloadSqlBackup = (prefix: string) => {
     // Handle settings
     sqlString += `DROP TABLE IF EXISTS settings;\n`;
     sqlString += `CREATE TABLE settings (\n  key TEXT PRIMARY KEY,\n  value TEXT\n);\n\n`;
-    if (data.schoolName) {
-      sqlString += `INSERT INTO settings (key, value) VALUES ('schoolName', ${escapeSql(data.schoolName)});\n`;
-    }
-    if (data.book_categories) {
-      sqlString += `INSERT INTO settings (key, value) VALUES ('book_categories', ${escapeSql(JSON.stringify(data.book_categories))});\n`;
-    }
-    if (data.student_classes) {
-      sqlString += `INSERT INTO settings (key, value) VALUES ('student_classes', ${escapeSql(JSON.stringify(data.student_classes))});\n`;
-    }
-    if (data.book_shelves) {
-      sqlString += `INSERT INTO settings (key, value) VALUES ('book_shelves', ${escapeSql(JSON.stringify(data.book_shelves))});\n`;
-    }
-    if (data.book_types) {
-      sqlString += `INSERT INTO settings (key, value) VALUES ('book_types', ${escapeSql(JSON.stringify(data.book_types))});\n`;
-    }
+
+    const settingsEntries = [
+      ['schoolName', data.schoolName],
+      ['book_categories', JSON.stringify(data.book_categories)],
+      ['student_classes', JSON.stringify(data.student_classes)],
+      ['book_shelves', JSON.stringify(data.book_shelves)],
+      ['book_types', JSON.stringify(data.book_types)],
+    ];
+
+    settingsEntries.forEach(([key, value]) => {
+      if (value) {
+        sqlString += `INSERT INTO settings (key, value) VALUES ('${key}', ${escapeSql(value)});\n`;
+      }
+    });
 
     const blob = new Blob([sqlString], { type: 'application/sql' });
     const url = URL.createObjectURL(blob);
@@ -111,7 +112,49 @@ export const generateAndDownloadSqlBackup = (prefix: string) => {
     URL.revokeObjectURL(url);
     return true;
   } catch (error) {
-    console.error('Erro ao gerar backup SQL:', error);
+    console.error('Erro ao gerar backup SQL do Firestore:', error);
     return false;
+  }
+};
+
+/**
+ * Restaura os dados do Firestore a partir de um objeto de backup.
+ * @param backupData Dados do backup
+ */
+export const restoreFromBackup = async (backupData: any) => {
+  try {
+    // 1. Restaurar Configurações
+    const settings: any = {};
+    if (backupData.schoolName) settings.schoolName = backupData.schoolName;
+    if (backupData.book_categories) settings.book_categories = backupData.book_categories;
+    if (backupData.student_classes) settings.student_classes = backupData.student_classes;
+    if (backupData.book_shelves) settings.book_shelves = backupData.book_shelves;
+    if (backupData.book_types) settings.book_types = backupData.book_types;
+
+    await updateSettings(settings);
+
+    // 2. Restaurar Coleções (Limpar e Adicionar)
+    const collectionsToRestore = ['books', 'students', 'loans', 'users'];
+
+    for (const colName of collectionsToRestore) {
+      if (backupData[colName] && Array.isArray(backupData[colName])) {
+        // Obter todos os IDs atuais e deletar
+        const currentData = await getAll(colName);
+        for (const item of currentData) {
+          await deleteDocument(colName, (item as any).id);
+        }
+
+        // Adicionar novos dados
+        for (const item of backupData[colName]) {
+          const { id, ...dataWithoutId } = item;
+          await addDocument(colName, dataWithoutId);
+        }
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Erro ao restaurar backup no Firestore:', error);
+    throw error;
   }
 };

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useFirestore } from '@/hooks/useFirestore';
 import { Book, Loan } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,15 +30,15 @@ import { PlusCircle, Search, Edit, Trash2, Upload } from 'lucide-react';
 import BookForm, { BookFormData } from '@/components/BookForm';
 import ImportBooksDialog from '@/components/ImportBooksDialog';
 import { showSuccess, showError } from '@/utils/toast';
-
-const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
+import { useSettings } from '@/hooks/useSettings';
 
 const BooksPage = () => {
-  const [books, setBooks] = useLocalStorage<Book[]>('books', []);
-  const [loans] = useLocalStorage<Loan[]>('loans', []);
-  const [categories] = useLocalStorage<string[]>('book_categories', ['GERAL']);
-  const [shelves] = useLocalStorage<string[]>('book_shelves', ['N/A']);
-  const [bookTypes] = useLocalStorage<string[]>('book_types', ['PESQUISA', 'DIDÁTICO', 'LITERATURA']); // New: Get book types
+  const { data: books, add: addBook, update: updateBook, remove: removeBook } = useFirestore<Book>('books');
+  const { data: loans } = useFirestore<Loan>('loans');
+  const { settings } = useSettings();
+  const categories = settings.book_categories;
+  const shelves = settings.book_shelves;
+  const bookTypes = settings.book_types;
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -62,17 +62,16 @@ const BooksPage = () => {
       book.code.toLowerCase().includes(lowerCaseSearchTerm) ||
       book.isbn.toLowerCase().includes(lowerCaseSearchTerm) ||
       book.shelf.toLowerCase().includes(lowerCaseSearchTerm) ||
-      book.bookType.toLowerCase().includes(lowerCaseSearchTerm) // Incluir busca por tipo
+      book.bookType.toLowerCase().includes(lowerCaseSearchTerm)
     );
   }, [books, searchTerm]);
 
-  const handleAddBook = (data: BookFormData) => {
+  const handleAddBook = async (data: BookFormData) => {
     if (books.some(b => b.code === data.code.toUpperCase())) {
       showError('Um livro com este código já existe.');
       return;
     }
-    const newBook: Book = {
-      id: generateId(),
+    await addBook({
       code: data.code,
       isbn: data.isbn,
       title: data.title,
@@ -82,40 +81,44 @@ const BooksPage = () => {
       category: data.category,
       bookType: data.bookType,
       quantity: data.quantity,
-    };
-    setBooks([...books, newBook]);
+    });
     showSuccess('Livro adicionado com sucesso!');
   };
 
-  const handleEditBook = (data: BookFormData) => {
+  const handleEditBook = async (data: BookFormData) => {
     if (!selectedBook) return;
-    setBooks(
-      books.map((b) => (b.id === selectedBook.id ? { ...b, ...data } : b))
-    );
+    await updateBook(selectedBook.id, data);
     showSuccess('Livro atualizado com sucesso!');
     setSelectedBook(null);
   };
 
-  const handleDeleteBook = (bookId: string) => {
+  const handleDeleteBook = async (bookId: string) => {
     const bookToDelete = books.find(b => b.id === bookId);
     if (!bookToDelete) return;
     if ((activeLoansByCode.get(bookToDelete.code) || 0) > 0) {
       showError('Não é possível excluir um livro com cópias emprestadas.');
       return;
     }
-    setBooks(books.filter(b => b.id !== bookId));
+    await removeBook(bookId);
     showSuccess('Livro excluído com sucesso!');
   };
 
-  const handleImportBooks = (importedBooks: Book[]) => {
-    // This replaces all existing books with the imported ones.
-    setBooks(importedBooks);
+  const handleImportBooks = async (importedBooks: Book[]) => {
+    // Delete all existing books first
+    for (const book of books) {
+      await removeBook(book.id);
+    }
+    // Add all imported books
+    for (const book of importedBooks) {
+      const { id, ...bookData } = book;
+      await addBook(bookData);
+    }
 
     const totalCopiesImported = importedBooks.reduce((sum, book) => sum + book.quantity, 0);
     const uniqueBookCount = importedBooks.length;
 
     showSuccess(`${totalCopiesImported} cópias de ${uniqueBookCount} livros foram importadas. Os dados anteriores foram substituídos.`);
-    
+
     return { processedCount: totalCopiesImported, uniqueBookCount: uniqueBookCount };
   };
 
@@ -132,7 +135,7 @@ const BooksPage = () => {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Gerenciamento de Livros</h1>
-      
+
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -151,7 +154,7 @@ const BooksPage = () => {
                 Importar
               </Button>
             </DialogTrigger>
-            <ImportBooksDialog 
+            <ImportBooksDialog
               onImport={handleImportBooks}
               closeDialog={() => setIsImportDialogOpen(false)}
             />
@@ -163,14 +166,14 @@ const BooksPage = () => {
                 Adicionar Livro
               </Button>
             </DialogTrigger>
-            <BookForm 
+            <BookForm
               key={selectedBook?.id || 'new'}
-              book={selectedBook} 
-              onSubmit={selectedBook ? handleEditBook : handleAddBook} 
+              book={selectedBook}
+              onSubmit={selectedBook ? handleEditBook : handleAddBook}
               closeDialog={() => setIsAddDialogOpen(false)}
               categories={categories}
-              shelves={shelves} 
-              bookTypes={bookTypes} // Passing bookTypes
+              shelves={shelves}
+              bookTypes={bookTypes}
             />
           </Dialog>
         </div>

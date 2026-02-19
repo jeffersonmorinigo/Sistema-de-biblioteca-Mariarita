@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useFirestore } from '@/hooks/useFirestore';
 import { Student } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,14 +33,12 @@ import ImportStudentsDialog from '@/components/ImportStudentsDialog';
 import { showSuccess, showError } from '@/utils/toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-
-const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
+import { useSettings } from '@/hooks/useSettings';
 
 const StudentsPage = () => {
-  const [students, setStudents] = useLocalStorage<Student[]>('students', []);
-  // Classes are now managed in SettingsPage, but StudentsPage still needs to read them
-  // and provide add/delete functionality for the StudentForm's ClassCombobox.
-  const [classes, setClasses] = useLocalStorage<string[]>('student_classes', []); 
+  const { data: students, add: addStudent, update: updateStudent, remove: removeStudent } = useFirestore<Student>('students');
+  const { settings, update: updateSettings } = useSettings();
+  const classes = settings.student_classes;
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -52,81 +50,77 @@ const StudentsPage = () => {
     );
   }, [students, searchTerm]);
 
-  const handleAddStudent = (data: StudentFormData) => {
-    // Não há mais validação de RA duplicado, pois o RA foi removido.
-    const newStudent: Student = {
-      id: generateId(),
+  const handleAddStudent = async (data: StudentFormData) => {
+    await addStudent({
       name: data.name,
       class: data.class,
       type: data.type,
       isBlocked: data.isBlocked,
       blockDate: data.isBlocked ? new Date().toISOString() : undefined,
-    };
-    setStudents([...students, newStudent]);
+    });
     showSuccess('Aluno adicionado com sucesso!');
   };
 
-  const handleEditStudent = (data: StudentFormData) => {
+  const handleEditStudent = async (data: StudentFormData) => {
     if (!selectedStudent) return;
-    
+
     const wasBlocked = selectedStudent.isBlocked;
     const isNowBlocked = data.isBlocked;
     let newBlockDate = selectedStudent.blockDate;
 
     if (isNowBlocked && !wasBlocked) {
-      // Student was unblocked, now blocked -> set new date
       newBlockDate = new Date().toISOString();
     } else if (!isNowBlocked && wasBlocked) {
-      // Student was blocked, now unblocked -> clear date
       newBlockDate = undefined;
     }
-    
-    setStudents(
-      students.map((s): Student => (s.id === selectedStudent.id ? { 
-        ...s, 
-        ...data, 
-        blockDate: newBlockDate 
-      } : s))
-    );
+
+    await updateStudent(selectedStudent.id, {
+      ...data,
+      blockDate: newBlockDate
+    });
     showSuccess('Aluno atualizado com sucesso!');
     setSelectedStudent(null);
   };
 
-  const handleDeleteStudent = (id: string) => {
-    // TODO: Check for active loans before deleting student
-    setStudents(students.filter(s => s.id !== id));
+  const handleDeleteStudent = async (id: string) => {
+    await removeStudent(id);
     showSuccess('Aluno excluído com sucesso!');
   };
 
-  const handleImportStudents = (importedStudents: Student[]) => {
-    // This replaces all existing students with the imported ones.
-    setStudents(importedStudents);
+  const handleImportStudents = async (importedStudents: Student[]) => {
+    // Delete all existing students first
+    for (const student of students) {
+      await removeStudent(student.id);
+    }
+    // Add all imported students
+    for (const student of importedStudents) {
+      const { id, ...studentData } = student;
+      await addStudent(studentData);
+    }
 
     // Update classes list based on imported students
     const newClasses = new Set<string>();
     importedStudents.forEach(s => newClasses.add(s.class));
-    setClasses(Array.from(newClasses).sort()); // Update classes in localStorage
+    await updateSettings({ student_classes: Array.from(newClasses).sort() });
 
     showSuccess(`${importedStudents.length} alunos foram importados. Os dados anteriores foram substituídos.`);
-    
+
     return { processedCount: importedStudents.length };
   };
 
-  // These functions will now update the 'student_classes' in localStorage,
-  // which is also read by the SettingsPage.
-  const handleAddClass = (newClass: string) => {
+  const handleAddClass = async (newClass: string) => {
     if (!classes.includes(newClass)) {
-      setClasses([...classes, newClass].sort());
+      await updateSettings({ student_classes: [...classes, newClass].sort() });
       showSuccess(`Turma "${newClass}" adicionada!`);
     }
   };
 
-  const handleDeleteClass = (classToDelete: string) => {
+  const handleDeleteClass = async (classToDelete: string) => {
     if (students.some(s => s.class === classToDelete)) {
       showError('Não é possível excluir uma turma que está em uso por um aluno.');
       return;
     }
-    setClasses(classes.filter(c => c !== classToDelete));
+    await updateSettings({ student_classes: classes.filter(c => c !== classToDelete) });
     showSuccess(`Turma "${classToDelete}" excluída!`);
   };
 
@@ -143,7 +137,7 @@ const StudentsPage = () => {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Gerenciamento de Alunos</h1>
-      
+
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -162,7 +156,7 @@ const StudentsPage = () => {
                 Importar
               </Button>
             </DialogTrigger>
-            <ImportStudentsDialog 
+            <ImportStudentsDialog
               onImport={handleImportStudents}
               closeDialog={() => setIsImportDialogOpen(false)}
             />
@@ -174,10 +168,10 @@ const StudentsPage = () => {
                 Adicionar Aluno
               </Button>
             </DialogTrigger>
-            <StudentForm 
+            <StudentForm
               key={selectedStudent?.id || 'new'}
-              student={selectedStudent} 
-              onSubmit={selectedStudent ? handleEditStudent : handleAddStudent} 
+              student={selectedStudent}
+              onSubmit={selectedStudent ? handleEditStudent : handleAddStudent}
               closeDialog={() => setIsAddDialogOpen(false)}
               classes={classes}
               onAddClass={handleAddClass}
@@ -217,7 +211,7 @@ const StudentsPage = () => {
                     )}
                   </TableCell>
                   <TableCell>
-                    {student.isBlocked && student.blockDate 
+                    {student.isBlocked && student.blockDate
                       ? format(new Date(student.blockDate), 'dd/MM/yyyy', { locale: ptBR })
                       : 'N/A'}
                   </TableCell>

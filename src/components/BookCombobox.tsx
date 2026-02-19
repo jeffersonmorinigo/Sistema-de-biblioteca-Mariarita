@@ -19,7 +19,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Book, Loan } from "@/lib/types"
-import { useLocalStorage } from "@/hooks/useLocalStorage"
+import { useFirestore } from "@/hooks/useFirestore"
 
 interface BookComboboxProps {
   books: Book[];
@@ -29,7 +29,7 @@ interface BookComboboxProps {
 
 export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
   const [open, setOpen] = React.useState(false)
-  const [loans] = useLocalStorage<Loan[]>('loans', []);
+  const { data: loans } = useFirestore<Loan>('loans');
 
   const activeLoansByCode = useMemo(() => {
     const counts = new Map<string, number>();
@@ -71,10 +71,10 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent 
+      <PopoverContent
         className="w-[--radix-popover-trigger-width] p-0"
-        side="bottom" 
-        align="start" 
+        side="bottom"
+        align="start"
       >
         <Command>
           <CommandInput placeholder="Buscar por Título, Autor, Código, Prateleira..." />
@@ -84,7 +84,6 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
               {availableBooks.map((book) => (
                 <CommandItem
                   key={book.id}
-                  // Valor de busca abrangente
                   value={`${book.title} ${book.author} ${book.shelf} ${book.code} ${book.isbn} ${book.category} ${book.bookType}`}
                   onSelect={() => {
                     onChange(book.code)

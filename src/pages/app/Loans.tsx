@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useFirestore } from '@/hooks/useFirestore';
+import { useSettings } from '@/hooks/useSettings';
 import { Loan, Book, Student } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,12 +24,11 @@ import { format, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
-const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
-
 const LoansPage = () => {
-  const [loans, setLoans] = useLocalStorage<Loan[]>('loans', []);
-  const [books, setBooks] = useLocalStorage<Book[]>('books', []);
-  const [students] = useLocalStorage<Student[]>('students', []);
+  const { data: loans, add: addLoan, update: updateLoan } = useFirestore<Loan>('loans');
+  const { data: books } = useFirestore<Book>('books');
+  const { data: students } = useFirestore<Student>('students');
+  const { settings } = useSettings();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -41,15 +41,15 @@ const LoansPage = () => {
       const lowercasedFilter = searchTerm.toLowerCase();
       const student = studentMap.get(loan.studentId);
       const book = bookMap.get(loan.bookCode);
-      
+
       const studentName = student?.name.toLowerCase() || '';
       const studentClass = student?.class.toLowerCase() || '';
       const bookTitle = book?.title.toLowerCase() || '';
       const bookShelf = book?.shelf.toLowerCase() || '';
-      
-      return studentName.includes(lowercasedFilter) 
+
+      return studentName.includes(lowercasedFilter)
         || studentClass.includes(lowercasedFilter)
-        || bookTitle.includes(lowercasedFilter) 
+        || bookTitle.includes(lowercasedFilter)
         || bookShelf.includes(lowercasedFilter);
     });
 
@@ -70,7 +70,7 @@ const LoansPage = () => {
     });
   }, [loans, searchTerm, studentMap, bookMap]);
 
-  const handleAddLoan = (data: LoanFormData) => {
+  const handleAddLoan = async (data: LoanFormData) => {
     const bookToLoan = books.find(b => b.code === data.bookCode);
     if (!bookToLoan) {
       showError('Livro não encontrado.');
@@ -83,25 +83,23 @@ const LoansPage = () => {
       return;
     }
 
-    const newLoan: Loan = {
-      id: generateId(),
+    await addLoan({
       studentId: data.studentId,
       bookCode: data.bookCode,
       loanDate: new Date().toISOString(),
       expectedReturnDate: data.expectedReturnDate.toISOString(),
-    };
-    setLoans([...loans, newLoan]);
+    });
     showSuccess('Empréstimo registrado com sucesso!');
     setIsDialogOpen(false);
   };
 
-  const handleReturnLoan = (loanId: string) => {
-    setLoans(loans.map(l => l.id === loanId ? { ...l, returnDate: new Date().toISOString() } : l));
+  const handleReturnLoan = async (loanId: string) => {
+    await updateLoan(loanId, { returnDate: new Date().toISOString() });
     showSuccess('Devolução registrada com sucesso!');
   };
 
   const handleGenerateReport = () => {
-    const overdueLoans = loans.filter(loan => 
+    const overdueLoans = loans.filter(loan =>
       !loan.returnDate && isAfter(new Date(), new Date(loan.expectedReturnDate))
     );
 
@@ -109,8 +107,8 @@ const LoansPage = () => {
       showSuccess("Nenhum empréstimo atrasado para relatar.");
       return;
     }
-    
-    const schoolName = JSON.parse(localStorage.getItem('schoolName') || '""') || 'Nome da Escola não definido';
+
+    const schoolName = settings.schoolName || 'Nome da Escola não definido';
 
     const reportWindow = window.open('', '_blank');
     if (reportWindow) {
@@ -187,9 +185,9 @@ const LoansPage = () => {
               </thead>
               <tbody>
                 ${overdueLoans.map(loan => {
-                  const student = studentMap.get(loan.studentId);
-                  const book = bookMap.get(loan.bookCode);
-                  return `
+        const student = studentMap.get(loan.studentId);
+        const book = bookMap.get(loan.bookCode);
+        return `
                     <tr>
                       <td>${student?.name || 'N/A'}</td>
                       <td>${student?.class || 'N/A'}</td>
@@ -198,18 +196,15 @@ const LoansPage = () => {
                       <td>${format(new Date(loan.expectedReturnDate), 'dd/MM/yyyy', { locale: ptBR })}</td>
                     </tr>
                   `;
-                }).join('')}
+      }).join('')}
               </tbody>
             </table>
           </body>
         </html>
       `);
       reportWindow.document.close();
-      // Wait a moment for the content to render before printing
       setTimeout(() => {
         reportWindow.print();
-        // Close the window after printing (optional, but good practice)
-        // reportWindow.close(); 
       }, 500);
     }
   };
@@ -217,7 +212,7 @@ const LoansPage = () => {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Gerenciamento de Empréstimos</h1>
-      
+
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -240,12 +235,11 @@ const LoansPage = () => {
                 Registrar Empréstimo
               </Button>
             </DialogTrigger>
-            {/* Adicionando key={isDialogOpen ? 'open' : 'closed'} para forçar a redefinição do estado interno do formulário */}
-            <LoanForm 
+            <LoanForm
               key={isDialogOpen ? 'open' : 'closed'}
               students={students}
               books={books}
-              onSubmit={handleAddLoan} 
+              onSubmit={handleAddLoan}
             />
           </Dialog>
         </div>

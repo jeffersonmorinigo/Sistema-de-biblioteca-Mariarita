@@ -16,31 +16,32 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Download, Upload, AlertTriangle, Database } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
-import { generateAndDownloadJsonBackup, generateAndDownloadSqlBackup } from '@/lib/backupUtils';
-
-const LOCAL_STORAGE_KEYS = [
-  'books', 'students', 'loans', 'users', 
-  'schoolName', 'book_categories', 'student_classes', 'book_shelves',
-  'isAuthenticated'
-];
+import { generateAndDownloadJsonBackup, generateAndDownloadSqlBackup, restoreFromBackup } from '@/lib/backupUtils';
 
 const BackupPage = () => {
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleJsonBackup = () => {
-    if (generateAndDownloadJsonBackup('backup_manual')) {
+  const handleJsonBackup = async () => {
+    setIsProcessing(true);
+    const success = await generateAndDownloadJsonBackup('backup_manual');
+    if (success) {
       showSuccess('Backup JSON gerado e baixado com sucesso!');
     } else {
       showError('Ocorreu um erro ao gerar o backup JSON.');
     }
+    setIsProcessing(false);
   };
 
-  const handleSqlBackup = () => {
-    if (generateAndDownloadSqlBackup('backup_manual')) {
+  const handleSqlBackup = async () => {
+    setIsProcessing(true);
+    const success = await generateAndDownloadSqlBackup('backup_manual');
+    if (success) {
       showSuccess('Backup SQL gerado e baixado com sucesso!');
     } else {
       showError('Ocorreu um erro ao gerar o backup SQL.');
     }
+    setIsProcessing(false);
   };
 
   const handleRestore = () => {
@@ -49,20 +50,24 @@ const BackupPage = () => {
       return;
     }
 
+    setIsProcessing(true);
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const backupData = JSON.parse(event.target?.result as string);
-        const hasRequiredKeys = LOCAL_STORAGE_KEYS.some(key => backupData.hasOwnProperty(key));
-        if (!hasRequiredKeys) {
+
+        // Simple verification - checking if it's a backup from this system
+        const possibleKeys = ['books', 'students', 'loans', 'users', 'schoolName'];
+        const hasSomeKeys = possibleKeys.some(key => backupData.hasOwnProperty(key));
+
+        if (!hasSomeKeys) {
           showError('Arquivo de backup inválido ou corrompido.');
+          setIsProcessing(false);
           return;
         }
-        Object.keys(backupData).forEach(key => {
-          if (LOCAL_STORAGE_KEYS.includes(key)) {
-            localStorage.setItem(key, JSON.stringify(backupData[key]));
-          }
-        });
+
+        await restoreFromBackup(backupData);
+
         showSuccess('Backup restaurado com sucesso! A página será recarregada.');
         setTimeout(() => {
           window.location.reload();
@@ -70,11 +75,12 @@ const BackupPage = () => {
       } catch (error) {
         console.error('Erro ao restaurar backup:', error);
         showError('Ocorreu um erro ao restaurar o backup. Verifique o arquivo.');
+        setIsProcessing(false);
       }
     };
     reader.readAsText(restoreFile);
   };
-  
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Backup & Restauração</h1>
@@ -92,9 +98,9 @@ const BackupPage = () => {
               <p className="text-sm text-muted-foreground mt-1 mb-3">
                 Use este arquivo para restaurar os dados neste sistema.
               </p>
-              <Button onClick={handleJsonBackup}>
+              <Button onClick={handleJsonBackup} disabled={isProcessing}>
                 <Download className="mr-2 h-4 w-4" />
-                Baixar Backup (JSON)
+                {isProcessing ? 'Gerando...' : 'Baixar Backup (JSON)'}
               </Button>
             </div>
             <div className="p-4 border rounded-lg">
@@ -102,9 +108,9 @@ const BackupPage = () => {
               <p className="text-sm text-muted-foreground mt-1 mb-3">
                 Use este arquivo para migrar os dados para outro sistema de banco de dados. <strong>Não pode ser restaurado aqui.</strong>
               </p>
-              <Button onClick={handleSqlBackup} variant="secondary">
+              <Button onClick={handleSqlBackup} variant="secondary" disabled={isProcessing}>
                 <Database className="mr-2 h-4 w-4" />
-                Baixar Backup (SQL)
+                {isProcessing ? 'Gerando...' : 'Baixar Backup (SQL)'}
               </Button>
             </div>
           </CardContent>
@@ -122,25 +128,31 @@ const BackupPage = () => {
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Atenção!</AlertTitle>
               <AlertDescription>
-                A restauração de um backup irá **substituir todos os dados atuais** da aplicação. Essa ação não pode ser desfeita.
+                A restauração de um backup irá **substituir todos os dados atuais** da aplicação no Firestore. Essa ação não pode ser desfeita.
               </AlertDescription>
             </Alert>
             <div className="space-y-2">
               <label htmlFor="restore-file" className="text-sm font-medium">Arquivo de Backup (.json)</label>
-              <Input id="restore-file" type="file" accept=".json" onChange={(e) => setRestoreFile(e.target.files ? e.target.files[0] : null)} />
+              <Input
+                id="restore-file"
+                type="file"
+                accept=".json"
+                onChange={(e) => setRestoreFile(e.target.files ? e.target.files[0] : null)}
+                disabled={isProcessing}
+              />
             </div>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={!restoreFile}>
+                <Button variant="destructive" disabled={!restoreFile || isProcessing}>
                   <Upload className="mr-2 h-4 w-4" />
-                  Restaurar Dados
+                  {isProcessing ? 'Restaurando...' : 'Restaurar Dados'}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Esta ação é irreversível e substituirá todos os dados existentes pelos dados do arquivo de backup selecionado.
+                    Esta ação é irreversível e substituirá todos os dados existentes no Banco de Dados (Firestore) pelos dados do arquivo de backup selecionado.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

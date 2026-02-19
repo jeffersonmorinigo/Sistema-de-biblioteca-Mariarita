@@ -19,36 +19,35 @@ const InitialBackupNotification = () => {
       if (sessionStorage.getItem(SESSION_KEY) === 'true') {
         return;
       }
-      
+
       // 3. Se não foi feito, abre o modal
       setIsOpen(true);
     }
   }, []);
 
-  const handleRunBackup = () => {
+  const handleRunBackup = async () => {
     setIsProcessing(true);
     setBackupAttempted(true);
-    
-    const jsonSuccess = generateAndDownloadJsonBackup('backup_inicial');
-    const sqlSuccess = generateAndDownloadSqlBackup('backup_inicial');
-    
+
+    const [jsonSuccess, sqlSuccess] = await Promise.all([
+      generateAndDownloadJsonBackup('backup_inicial'),
+      generateAndDownloadSqlBackup('backup_inicial')
+    ]);
+
     if (jsonSuccess && sqlSuccess) {
       showSuccess('Backups JSON e SQL gerados com sucesso! Verifique sua pasta de Downloads.');
       sessionStorage.setItem(SESSION_KEY, 'true');
     } else {
       showError('Falha ao gerar um ou ambos os backups iniciais. Tente novamente na página de Backup.');
     }
-    
+
     setIsProcessing(false);
     setIsOpen(false);
   };
-  
-  // Se o backup já foi tentado e falhou, ou se o usuário fechar o modal, 
-  // ele não deve reabrir até a próxima inicialização do app.
+
   const handleClose = () => {
     if (!backupAttempted) {
-        // Se o usuário fechar sem tentar, marcamos como feito para não incomodar
-        sessionStorage.setItem(SESSION_KEY, 'true');
+      sessionStorage.setItem(SESSION_KEY, 'true');
     }
     setIsOpen(false);
   };
@@ -66,12 +65,12 @@ const InitialBackupNotification = () => {
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-2">
-            <p className="text-sm text-muted-foreground">
-                Ao clicar em "Gerar Backups", dois arquivos (JSON e SQL) contendo todos os dados serão salvos na sua pasta de Downloads.
-            </p>
-            <p className="text-sm font-medium text-red-600 dark:text-red-400">
-                Recomendamos fortemente que você faça isso agora.
-            </p>
+          <p className="text-sm text-muted-foreground">
+            Ao clicar em "Gerar Backups", dois arquivos (JSON e SQL) contendo todos os dados do Firestore serão salvos na sua pasta de Downloads.
+          </p>
+          <p className="text-sm font-medium text-red-600 dark:text-red-400">
+            Recomendamos fortemente que você faça isso agora.
+          </p>
         </div>
         <DialogFooter>
           <Button type="button" variant="secondary" onClick={handleClose} disabled={isProcessing}>

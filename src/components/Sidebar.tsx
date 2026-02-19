@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { Book, Users, ArrowLeftRight, DatabaseBackup, UserCog, Settings, Library } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useSettings } from '@/hooks/useSettings';
 
 const navItems = [
   { href: '/loans', icon: ArrowLeftRight, label: 'Empréstimos' },
@@ -13,7 +13,8 @@ const navItems = [
 ];
 
 const Sidebar = () => {
-  const [schoolName] = useLocalStorage('schoolName', '');
+  const { settings } = useSettings();
+  const schoolName = settings.schoolName;
 
   return (
     <aside className="w-64 flex-shrink-0 bg-card border-r p-4 flex flex-col">
@@ -21,7 +22,7 @@ const Sidebar = () => {
         <div className="flex items-center gap-2">
           <Library className="w-8 h-8 text-primary" />
           <h1 className="text-2xl font-bold flex items-baseline">
-            Biblioteca 
+            Biblioteca
             <span className="text-lg font-bold text-primary ml-1">2.0</span>
           </h1>
         </div>
@@ -51,7 +52,6 @@ const Sidebar = () => {
           ))}
         </ul>
       </nav>
-      {/* Botão de Sair removido daqui */}
     </aside>
   );
 };
