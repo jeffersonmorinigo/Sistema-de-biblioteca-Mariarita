@@ -104,7 +104,10 @@
       "output": "release"
     },
     "win": {
-      "target": "nsis",
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "public/logo.png"
     },
     "mac": {

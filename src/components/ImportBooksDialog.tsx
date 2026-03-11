@@ -19,7 +19,7 @@ import { FileText } from 'lucide-react';
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
 interface ImportBooksDialogProps {
-  onImport: (newBooks: Book[]) => { processedCount: number, uniqueBookCount: number };
+  onImport: (newBooks: Book[]) => Promise<{ processedCount: number, uniqueBookCount: number }> | { processedCount: number, uniqueBookCount: number };
   closeDialog: () => void;
 }
 
@@ -258,7 +258,7 @@ const ImportBooksDialog = ({ onImport, closeDialog }: ImportBooksDialogProps) =>
         const booksToImport = await processDataInChunks(dataToProcess, isJsonImport, setProgress);
         
         if (booksToImport.length > 0) {
-          const result = onImport(booksToImport);
+          const result = await onImport(booksToImport);
           setProcessedCount(result.processedCount);
           setUniqueBookCount(result.uniqueBookCount);
         } else {

@@ -19,7 +19,7 @@ import { FileText } from 'lucide-react';
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
 interface ImportStudentsDialogProps {
-  onImport: (newStudents: Student[]) => { processedCount: number };
+  onImport: (newStudents: Student[]) => Promise<{ processedCount: number }> | { processedCount: number };
   closeDialog: () => void;
 }
 
@@ -323,7 +323,7 @@ const ImportStudentsDialog = ({ onImport, closeDialog }: ImportStudentsDialogPro
         const studentsToImport = await processDataInChunks(dataToProcess, isJsonImport, setProgress);
         
         if (studentsToImport.length > 0) {
-          const result = onImport(studentsToImport);
+          const result = await onImport(studentsToImport);
           setProcessedCount(result.processedCount);
         } else {
           showError('Nenhum aluno válido encontrado após o processamento. Verifique o formato dos dados.');

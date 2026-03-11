@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { Book, Users, ArrowLeftRight, DatabaseBackup, UserCog, Settings, Library } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSettings } from '@/hooks/useSettings';
+import logo from '@/assets/logo.png';
 
 const navItems = [
   { href: '/loans', icon: ArrowLeftRight, label: 'Empréstimos' },
@@ -19,11 +20,14 @@ const Sidebar = () => {
   return (
     <aside className="w-64 flex-shrink-0 bg-card border-r p-4 flex flex-col">
       <div className="flex flex-col items-center justify-center gap-2 mb-8 text-center">
-        <div className="flex items-center gap-2">
-          <Library className="w-8 h-8 text-primary" />
-          <h1 className="text-2xl font-bold flex items-baseline">
-            Biblioteca
-            <span className="text-lg font-bold text-primary ml-1">2.0</span>
+        <div className="flex flex-col items-center gap-2">
+          <img
+            src={logo}
+            alt="Logo"
+            className="w-20 h-20 object-contain"
+          />
+          <h1 className="text-xl font-bold">
+            Biblioteca 2.0
           </h1>
         </div>
         {schoolName && (

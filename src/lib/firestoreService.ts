@@ -27,15 +27,24 @@ export async function getAll<T>(collectionName: string): Promise<T[]> {
     })) as T[];
 }
 
-/**
- * Add a new document to a collection
- */
 export async function addDocument<T extends Record<string, any>>(
     collectionName: string,
     data: Omit<T, 'id'>
 ): Promise<string> {
     const docRef = await addDoc(collection(db, collectionName), data);
     return docRef.id;
+}
+
+/**
+ * Set a document with a specific ID
+ */
+export async function setDocument<T extends Record<string, any>>(
+    collectionName: string,
+    docId: string,
+    data: T
+): Promise<void> {
+    const docRef = doc(db, collectionName, docId);
+    await setDoc(docRef, data);
 }
 
 /**

@@ -33,7 +33,9 @@ import ImportStudentsDialog from '@/components/ImportStudentsDialog';
 import { showSuccess, showError } from '@/utils/toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { normalizeString } from '@/utils/stringUtils';
 import { useSettings } from '@/hooks/useSettings';
+import { GraduationCap, User } from 'lucide-react';
 
 const StudentsPage = () => {
   const { data: students, add: addStudent, update: updateStudent, remove: removeStudent } = useFirestore<Student>('students');
@@ -45,20 +47,33 @@ const StudentsPage = () => {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   const filteredStudents = useMemo(() => {
-    return students.filter(student =>
-      student.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const normalizedSearch = normalizeString(searchTerm);
+    return students.filter(student => {
+      const name = normalizeString(student.name || '');
+      const studentClass = normalizeString(student.class || '');
+      const type = normalizeString(student.type || '');
+      
+      return name.includes(normalizedSearch) ||
+             studentClass.includes(normalizedSearch) ||
+             type.includes(normalizedSearch);
+    });
   }, [students, searchTerm]);
 
   const handleAddStudent = async (data: StudentFormData) => {
-    await addStudent({
-      name: data.name,
-      class: data.class,
-      type: data.type,
-      isBlocked: data.isBlocked,
-      blockDate: data.isBlocked ? new Date().toISOString() : undefined,
-    });
-    showSuccess('Aluno adicionado com sucesso!');
+    try {
+      await addStudent({
+        name: data.name,
+        class: data.class,
+        type: data.type,
+        isBlocked: data.isBlocked,
+        blockDate: data.isBlocked ? new Date().toISOString() : null,
+      });
+      showSuccess('Aluno adicionado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao adicionar aluno:', error);
+      showError('Erro ao adicionar aluno. Tente novamente.');
+      throw error; // Repropaga para o formulário saber que falhou
+    }
   };
 
   const handleEditStudent = async (data: StudentFormData) => {
@@ -71,20 +86,34 @@ const StudentsPage = () => {
     if (isNowBlocked && !wasBlocked) {
       newBlockDate = new Date().toISOString();
     } else if (!isNowBlocked && wasBlocked) {
-      newBlockDate = undefined;
+      newBlockDate = null;
     }
 
-    await updateStudent(selectedStudent.id, {
-      ...data,
-      blockDate: newBlockDate
-    });
-    showSuccess('Aluno atualizado com sucesso!');
-    setSelectedStudent(null);
+    try {
+      await updateStudent(selectedStudent.id, {
+        name: data.name,
+        class: data.class,
+        type: data.type,
+        isBlocked: isNowBlocked,
+        blockDate: newBlockDate,
+      });
+      showSuccess('Aluno atualizado com sucesso!');
+      setSelectedStudent(null);
+    } catch (error) {
+      console.error('Erro ao atualizar aluno:', error);
+      showError('Erro ao atualizar aluno. Tente novamente.');
+      throw error;
+    }
   };
 
   const handleDeleteStudent = async (id: string) => {
-    await removeStudent(id);
-    showSuccess('Aluno excluído com sucesso!');
+    try {
+      await removeStudent(id);
+      showSuccess('Aluno excluído com sucesso!');
+    } catch (error) {
+      console.error('Erro ao excluir aluno:', error);
+      showError('Erro ao excluir aluno. Tente novamente.');
+    }
   };
 
   const handleImportStudents = async (importedStudents: Student[]) => {
@@ -198,7 +227,21 @@ const StudentsPage = () => {
               filteredStudents.map(student => (
                 <TableRow key={student.id}>
                   <TableCell className="font-medium">{student.name}</TableCell>
-                  <TableCell>{student.type || 'N/A'}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                       {student.type === 'PROFESSOR' ? (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          <User className="h-3 w-3 mr-1" />
+                          PROFESSOR
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+                          <GraduationCap className="h-3 w-3 mr-1" />
+                          ALUNO
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>{student.class}</TableCell>
                   <TableCell>
                     {student.isBlocked ? (

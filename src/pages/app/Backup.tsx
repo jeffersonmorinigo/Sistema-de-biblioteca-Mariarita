@@ -14,13 +14,40 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Download, Upload, AlertTriangle, Database } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Download, Upload, AlertTriangle, Database, Trash2 } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { generateAndDownloadJsonBackup, generateAndDownloadSqlBackup, restoreFromBackup } from '@/lib/backupUtils';
+import { getAll, deleteDocument } from '@/lib/firestoreService';
+import { Loan } from '@/lib/types';
 
 const BackupPage = () => {
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [cleanupMonth, setCleanupMonth] = useState<string>("all");
+  const [cleanupYear, setCleanupYear] = useState<string>(new Date().getFullYear().toString());
+
+  const months = [
+    { value: "all", label: "Todos os Meses" },
+    { value: "01", label: "Janeiro" },
+    { value: "02", label: "Fevereiro" },
+    { value: "03", label: "Março" },
+    { value: "04", label: "Abril" },
+    { value: "05", label: "Maio" },
+    { value: "06", label: "Junho" },
+    { value: "07", label: "Julho" },
+    { value: "08", label: "Agosto" },
+    { value: "09", label: "Setembro" },
+    { value: "10", label: "Outubro" },
+    { value: "11", label: "Novembro" },
+    { value: "12", label: "Dezembro" },
+  ];
 
   const handleJsonBackup = async () => {
     setIsProcessing(true);
@@ -42,6 +69,49 @@ const BackupPage = () => {
       showError('Ocorreu um erro ao gerar o backup SQL.');
     }
     setIsProcessing(false);
+  };
+
+  const handleClearByDate = async () => {
+    setIsProcessing(true);
+    try {
+      const monthLabel = months.find(m => m.value === cleanupMonth)?.label;
+      const filterLabel = cleanupMonth === "all" ? cleanupYear : `${monthLabel} de ${cleanupYear}`;
+      
+      showSuccess(`Iniciando limpeza dos registros de ${filterLabel}...`);
+      
+      const loans = await getAll<Loan>('loans');
+      
+      // Pattern: YYYY or YYYY-MM
+      const pattern = cleanupMonth === "all" ? cleanupYear : `${cleanupYear}-${cleanupMonth}`;
+
+      const loansToDelete = loans.filter(loan => 
+        loan.loanDate.includes(pattern) || 
+        loan.expectedReturnDate.includes(pattern) ||
+        (loan.returnDate && loan.returnDate.includes(pattern))
+      );
+
+      if (loansToDelete.length === 0) {
+        showSuccess(`Nenhum registro encontrado para ${filterLabel}.`);
+        setIsProcessing(false);
+        return;
+      }
+
+      console.log(`[Cleanup] Excluindo ${loansToDelete.length} registros para ${pattern}...`);
+      
+      const chunkSize = 10;
+      for (let i = 0; i < loansToDelete.length; i += chunkSize) {
+        const chunk = loansToDelete.slice(i, i + chunkSize);
+        await Promise.all(chunk.map(loan => deleteDocument('loans', loan.id)));
+      }
+
+      showSuccess(`${loansToDelete.length} registros de ${filterLabel} foram removidos com sucesso!`);
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (error: any) {
+      console.error('Erro ao limpar dados:', error);
+      showError(`Erro ao limpar dados: ${error.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleRestore = () => {
@@ -126,6 +196,62 @@ const BackupPage = () => {
                 <Database className="mr-2 h-4 w-4" />
                 {isProcessing ? 'Gerando...' : 'Baixar Backup (SQL)'}
               </Button>
+            </div>
+            <div className="p-4 border rounded-lg border-red-200 bg-red-50 dark:bg-red-900/10">
+              <h4 className="font-semibold text-red-600">Manutenção do Sistema</h4>
+              <p className="text-sm text-muted-foreground mt-1 mb-3">
+                Remover registros de empréstimos por período específico.
+              </p>
+              
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Mês</label>
+                  <Select value={cleanupMonth} onValueChange={setCleanupMonth}>
+                    <SelectTrigger className="bg-white dark:bg-slate-950">
+                      <SelectValue placeholder="Mês" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {months.map(m => (
+                        <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Ano</label>
+                  <Input 
+                    type="number" 
+                    value={cleanupYear} 
+                    onChange={(e) => setCleanupYear(e.target.value)}
+                    className="bg-white dark:bg-slate-950"
+                  />
+                </div>
+              </div>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" className="w-full" disabled={isProcessing}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Limpar Dados do Período
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Confirmar Limpeza</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Isso removerápermanentemente todos os empréstimos registrados em 
+                      <strong> {cleanupMonth === "all" ? cleanupYear : `${months.find(m => m.value === cleanupMonth)?.label} de ${cleanupYear}`}</strong>. 
+                      A ação não pode ser desfeita.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleClearByDate}>
+                      Sim, Limpar Dados
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </CardContent>
         </Card>

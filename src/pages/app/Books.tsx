@@ -27,6 +27,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { PlusCircle, Search, Edit, Trash2, Upload } from 'lucide-react';
+import { normalizeString } from '@/utils/stringUtils';
 import BookForm, { BookFormData } from '@/components/BookForm';
 import ImportBooksDialog from '@/components/ImportBooksDialog';
 import { showSuccess, showError } from '@/utils/toast';
@@ -55,14 +56,15 @@ const BooksPage = () => {
   }, [loans]);
 
   const filteredBooks = useMemo(() => {
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    const normalizedSearch = normalizeString(searchTerm);
     return books.filter(book =>
-      book.title.toLowerCase().includes(lowerCaseSearchTerm) ||
-      book.author.toLowerCase().includes(lowerCaseSearchTerm) ||
-      book.code.toLowerCase().includes(lowerCaseSearchTerm) ||
-      book.isbn.toLowerCase().includes(lowerCaseSearchTerm) ||
-      book.shelf.toLowerCase().includes(lowerCaseSearchTerm) ||
-      book.bookType.toLowerCase().includes(lowerCaseSearchTerm)
+      normalizeString(book.title).includes(normalizedSearch) ||
+      normalizeString(book.author).includes(normalizedSearch) ||
+      normalizeString(book.code).includes(normalizedSearch) ||
+      normalizeString(book.isbn).includes(normalizedSearch) ||
+      normalizeString(book.shelf || '').includes(normalizedSearch) ||
+      normalizeString(book.bookType || '').includes(normalizedSearch) ||
+      normalizeString(book.category || '').includes(normalizedSearch)
     );
   }, [books, searchTerm]);
 

@@ -86,19 +86,31 @@ export function ClassCombobox({ classes, value, onChange, onAddClass, onDeleteCl
                   key={className}
                   value={className}
                   onSelect={() => {
-                    onChange(className)
-                    setOpen(false)
+                    onChange(className);
+                    setOpen(false);
                   }}
+                  className="cursor-pointer flex items-center justify-between"
                 >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      value === className ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  <span className="flex-1">{className}</span>
-                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => handleDelete(e, className)}>
-                    <Trash2 className="h-4 w-4 text-red-500" />
+                  <div className="flex items-center flex-1">
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        value === className ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    <span>{className}</span>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-50" 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDelete(e, className);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </CommandItem>
               ))}

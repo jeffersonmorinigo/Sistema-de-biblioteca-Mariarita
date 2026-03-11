@@ -1,31 +1,53 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Regras gerais para as coleções do sistema
-    // Nota: Atualmente o sistema usa autenticação customizada via dados na coleção 'users'.
-    // Para segurança máxima, recomenda-se usar o Firebase Auth nativo no futuro.
+    // Helper function to check if a user is authenticated (using the custom auth logic)
+    // Note: Since we are not using Firebase Auth, we can't reliably verify identity in rules
+    // based on UID. We can only guard against malformed data.
     
+    function isValidBook() {
+      let data = request.resource.data;
+      return data.title is string && data.title.size() > 0 &&
+             data.author is string &&
+             data.category is string;
+    }
+    
+    function isValidStudent() {
+      let data = request.resource.data;
+      return data.name is string && data.name.size() > 0 &&
+             data.class is string;
+    }
+
     match /users/{userId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if request.resource.data.email is string && 
+                      request.resource.data.password is string;
     }
     
     match /books/{bookId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isValidBook();
+      allow delete: if false; // Disallow deletion from client for extra safety
     }
     
     match /students/{studentId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isValidStudent();
+      allow delete: if false;
     }
     
     match /loans/{loanId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if request.resource.data.bookId is string &&
+                              request.resource.data.studentId is string;
+      allow delete: if true;
     }
     
     match /settings/{settingsId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if request.resource.data.schoolName is string;
     }
     
-    // Nega acesso a qualquer outra coleção não especificada
     match /{document=**} {
       allow read, write: if false;
     }

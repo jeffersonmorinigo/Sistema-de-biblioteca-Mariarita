@@ -11,6 +11,7 @@ import BackupPage from './pages/app/Backup';
 import NotFound from './pages/NotFound';
 import { Toaster } from '@/components/ui/sonner';
 import InitialBackupNotification from '@/components/InitialBackupNotification'; // Importando o novo componente
+import { useEffect } from 'react';
 
 // A simple component to redirect based on auth status
 const HomeRedirect = () => {
@@ -20,12 +21,12 @@ const HomeRedirect = () => {
 
 const AppRoutes = () => {
   // O hook useInitialBackup foi substituído pelo componente InitialBackupNotification
-  
+
   return (
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        
+
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>
           <Route path="/books" element={<BooksPage />} />
@@ -40,12 +41,38 @@ const AppRoutes = () => {
         <Route path="*" element={<NotFound />} />
       </Routes>
       {/* Renderiza a notificação de backup após o login */}
-      <InitialBackupNotification /> 
+      <InitialBackupNotification />
     </Router>
   );
 };
 
 const App = () => {
+  useEffect(() => {
+    // Disable right-click
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+
+    // Disable common developer shortcuts (F12, Ctrl+Shift+I, Ctrl+U)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === 'F12' ||
+        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
+        (e.ctrlKey && e.key === 'u')
+      ) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
   return (
     <AuthProvider>
       <AppRoutes />

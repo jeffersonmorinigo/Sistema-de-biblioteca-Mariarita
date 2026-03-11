@@ -5,6 +5,8 @@ import { Check, ChevronsUpDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { normalizeString } from "@/utils/stringUtils"
+import { GraduationCap, User as UserIcon } from "lucide-react"
 import {
   Command,
   CommandEmpty,
@@ -32,7 +34,7 @@ export function StudentCombobox({ students, value, onChange }: StudentComboboxPr
   const selectedStudentDisplay = React.useMemo(() => {
     if (!value) return "Selecione ou busque um aluno...";
     const student = students.find((s) => s.id === value);
-    return student ? `${student.name} - Turma: ${student.class}` : "Selecione ou busque um aluno...";
+    return student ? `${student.name} (${student.class})` : "Selecione ou busque um aluno...";
   }, [value, students]);
 
   return (
@@ -48,9 +50,12 @@ export function StudentCombobox({ students, value, onChange }: StudentComboboxPr
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-        <Command>
-          <CommandInput placeholder="Buscar por nome ou turma..." />
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <Command filter={(value, search) => {
+          if (normalizeString(value).includes(normalizeString(search))) return 1;
+          return 0;
+        }}>
+          <CommandInput placeholder="Buscar por nome, turma ou tipo..." />
           <CommandList className="max-h-[300px] overflow-y-auto">
             <CommandEmpty>Nenhum aluno encontrado.</CommandEmpty>
             <CommandGroup>
@@ -73,9 +78,15 @@ export function StudentCombobox({ students, value, onChange }: StudentComboboxPr
                   />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{student.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      Turma: {student.class} | Tipo: {student.type}
-                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground bg-slate-100 px-1.5 py-0.5 rounded flex items-center">
+                        {student.type === 'PROFESSOR' ? <UserIcon className="h-2.5 w-2.5 mr-1" /> : <GraduationCap className="h-2.5 w-2.5 mr-1" />}
+                        {student.class}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {student.type}
+                      </span>
+                    </div>
                   </div>
                 </CommandItem>
               ))}

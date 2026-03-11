@@ -28,7 +28,7 @@ export type StudentFormData = z.infer<typeof studentSchema>;
 
 interface StudentFormProps {
   student?: Student | null;
-  onSubmit: (data: StudentFormData) => void;
+  onSubmit: (data: StudentFormData) => Promise<void> | void;
   closeDialog: () => void;
   classes: string[];
   onAddClass: (value: string) => void;
@@ -42,7 +42,7 @@ const StudentForm = ({ student, onSubmit, closeDialog, classes, onAddClass, onDe
     control,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<StudentFormData>({
     resolver: zodResolver(studentSchema),
     defaultValues: student ? {
@@ -67,16 +67,20 @@ const StudentForm = ({ student, onSubmit, closeDialog, classes, onAddClass, onDe
 
   const isBlocked = watch('isBlocked');
 
-  const handleFormSubmit = (data: StudentFormData) => {
+  const handleFormSubmit = async (data: StudentFormData) => {
     const transformedData = {
       ...data,
       name: data.name.toUpperCase(),
       class: data.class.toUpperCase(),
       type: data.type.toUpperCase(),
-      // We don't handle blockDate here, it's handled in StudentsPage or during import
     };
-    onSubmit(transformedData);
-    closeDialog();
+    try {
+      await onSubmit(transformedData);
+      closeDialog();
+    } catch (error) {
+      console.error('Erro ao salvar aluno:', error);
+      // Erro é mostrado pelo toast no pai, mas aqui garantimos que o dialog não fecha se falhar
+    }
   };
 
   return (
@@ -144,7 +148,9 @@ const StudentForm = ({ student, onSubmit, closeDialog, classes, onAddClass, onDe
           <DialogClose asChild>
             <Button type="button" variant="secondary">Cancelar</Button>
           </DialogClose>
-          <Button type="submit">{student ? 'Salvar' : 'Adicionar'}</Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Salvando...' : (student ? 'Salvar' : 'Adicionar')}
+          </Button>
         </DialogFooter>
       </form>
     </DialogContent>

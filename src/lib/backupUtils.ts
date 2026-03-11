@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { getAll, getSettings, updateSettings, addDocument, deleteDocument } from './firestoreService';
+import { getAll, getSettings, updateSettings, addDocument, deleteDocument, setDocument } from './firestoreService';
 import { Book, Student, Loan, User } from './types';
 
 /**
@@ -159,8 +159,12 @@ export const restoreFromBackup = async (backupData: any) => {
       const currentData = await getAll(colName);
       if (currentData.length > 0) {
         console.log(`[Restore] Limpando ${currentData.length} itens de "${colName}"...`);
-        // Deletar em pequenos grupos para não travar
-        await Promise.all(currentData.map(item => deleteDocument(colName, (item as any).id)));
+        // Deletar em pequenos grupos para não sobrecarregar
+        const deleteChunkSize = 20;
+        for (let i = 0; i < currentData.length; i += deleteChunkSize) {
+          const chunk = currentData.slice(i, i + deleteChunkSize);
+          await Promise.all(chunk.map(item => deleteDocument(colName, (item as any).id)));
+        }
       }
 
       // Adicionar novos dados (Com sanitização para evitar erros de campos inválidos no Firestore)
@@ -168,23 +172,28 @@ export const restoreFromBackup = async (backupData: any) => {
         console.log(`[Restore] Enviando novos dados para "${colName}"...`);
 
         // Processa em paralelos moderados para performance e estabilidade
-        const chunkSize = 15;
-        for (let i = 0; i < items.length; i += chunkSize) {
-          const chunk = items.slice(i, i + chunkSize);
+        const addChunkSize = 20;
+        for (let i = 0; i < items.length; i += addChunkSize) {
+          const chunk = items.slice(i, i + addChunkSize);
           await Promise.all(chunk.map(async (item) => {
             if (!item || typeof item !== 'object') return;
 
-            // Remove 'id' e garante que campos obrigatórios existam conforme o tipo
+            // Preservar o ID original se existir para manter integridade das referências
+            const originalId = item.id;
             const { id, ...cleanData } = item;
 
-            // Sanitização básica campo a campo (Garante que strings vazias ou nulos não quebrem o Firestore)
+            // Sanitização básica campo a campo
             const sanitizedData: any = {};
             Object.entries(cleanData).forEach(([k, v]) => {
               if (v !== undefined) sanitizedData[k] = v;
             });
 
             try {
-              await addDocument(colName, sanitizedData);
+              if (originalId) {
+                await setDocument(colName, originalId, sanitizedData);
+              } else {
+                await addDocument(colName, sanitizedData);
+              }
             } catch (err) {
               console.error(`[Restore] Falha ao inserir item em ${colName}:`, err);
             }

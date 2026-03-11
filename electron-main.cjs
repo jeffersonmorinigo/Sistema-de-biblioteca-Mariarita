@@ -11,7 +11,9 @@ function createWindow() {
     minHeight: 600,
     title: 'Sistema de Biblioteca', // Define o título da janela
     autoHideMenuBar: true, // Oculta a barra de menu
-    icon: path.join(__dirname, 'public', 'logo.png'), // Ícone da janela
+    icon: isDev
+      ? path.join(__dirname, 'public', 'logo.png')
+      : path.join(__dirname, 'dist', 'logo.png'), // Ícone da janela
     webPreferences: {
       // Desabilita a integração de node no renderizador por segurança,
       // a menos que você realmente precise dela e saiba os riscos.

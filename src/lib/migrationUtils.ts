@@ -1,4 +1,4 @@
-import { getAll, addDocument, getSettings, updateSettings } from './firestoreService';
+import { getAll, addDocument, getSettings, updateSettings, setDocument } from './firestoreService';
 
 const LOCAL_STORAGE_KEYS = {
     books: 'books',
@@ -65,9 +65,14 @@ export const migrateLocalToFirestore = async () => {
                 if (Array.isArray(items) && items.length > 0) {
                     console.log(`Migração: Transferindo ${items.length} itens de "${key}"...`);
                     for (const item of items) {
+                        const originalId = item.id;
                         const { id, ...data } = item;
                         try {
-                            await addDocument(key, data);
+                            if (originalId) {
+                                await setDocument(key, originalId, data);
+                            } else {
+                                await addDocument(key, data);
+                            }
                         } catch (docErr) {
                             console.error(`Erro ao migrar item da coleção ${key}:`, docErr);
                         }

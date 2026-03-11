@@ -5,6 +5,7 @@ import { Check, ChevronsUpDown } from "lucide-react"
 import { useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { normalizeString } from "@/utils/stringUtils"
 import {
   Command,
   CommandEmpty,
@@ -76,7 +77,10 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
         side="bottom"
         align="start"
       >
-        <Command>
+        <Command filter={(value, search) => {
+          if (normalizeString(value).includes(normalizeString(search))) return 1;
+          return 0;
+        }}>
           <CommandInput placeholder="Buscar por Título, Autor, Código, Prateleira..." />
           <CommandList className="max-h-[300px] overflow-y-auto">
             <CommandEmpty>Nenhum livro disponível encontrado.</CommandEmpty>
@@ -99,9 +103,14 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
                   />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{book.title}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {book.author} | Cód: {book.code} | Prat: {book.shelf || 'N/A'}
-                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground bg-slate-100 px-1.5 py-0.5 rounded">
+                        {book.code}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground truncate">
+                        {book.author} | Prat: {book.shelf || 'N/A'}
+                      </span>
+                    </div>
                   </div>
                   <span className="text-xs bg-primary text-primary-foreground rounded-full px-2 py-0.5 ml-2 flex-shrink-0 font-semibold">
                     {book.availableCount} {book.availableCount === 1 ? 'disp.' : 'disps.'}

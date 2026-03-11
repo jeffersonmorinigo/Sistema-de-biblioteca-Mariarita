@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
+import logo from '@/assets/logo.png';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -30,7 +31,7 @@ const LoginPage = () => {
         <CardHeader className="text-center pt-8">
           <div className="flex justify-center mb-6">
             <img
-              src="logo.png"
+              src={logo}
               alt="Logo Sistema de Gestão Escolar"
               className="w-32 h-32 object-contain"
             />
