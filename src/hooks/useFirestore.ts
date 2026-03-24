@@ -23,8 +23,8 @@ export function useFirestore<T extends { id: string }>(collectionName: string) {
         return () => unsubscribe();
     }, [collectionName]);
 
-    const add = async (item: Omit<T, 'id'>) => {
-        await addDocument(collectionName, item as Record<string, any>);
+    const add = async (item: Omit<T, 'id'>): Promise<string> => {
+        return await addDocument(collectionName, item as Record<string, any>);
     };
 
     const update = async (id: string, updates: Partial<T>) => {

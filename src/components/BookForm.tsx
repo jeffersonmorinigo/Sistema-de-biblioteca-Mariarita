@@ -90,7 +90,7 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
         <div className="grid gap-3 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="code" className="text-right">Código</Label>
-            <Input id="code" {...register('code')} className="col-span-3 uppercase" disabled={!!book} />
+            <Input id="code" {...register('code')} className="col-span-3 uppercase" />
             {errors.code && <p className="col-span-4 text-red-500 text-sm text-right">{errors.code.message}</p>}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">

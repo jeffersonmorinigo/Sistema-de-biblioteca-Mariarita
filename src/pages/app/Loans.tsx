@@ -16,8 +16,13 @@ import {
 import {
   Dialog,
   DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
-import { PlusCircle, Undo2, FileText, Search } from 'lucide-react';
+import { PlusCircle, Undo2, FileText, Search, Printer } from 'lucide-react';
 import LoanForm, { LoanFormData } from '@/components/LoanForm';
 import { showSuccess, showError } from '@/utils/toast';
 import { format, isAfter } from 'date-fns';
@@ -30,6 +35,8 @@ const LoansPage = () => {
   const { data: students } = useFirestore<Student>('students');
   const { settings } = useSettings();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
+  const [lastAddedLoan, setLastAddedLoan] = useState<Loan | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   const studentMap = useMemo(() => new Map(students.map(s => [s.id, s])), [students]);
@@ -83,19 +90,186 @@ const LoansPage = () => {
       return;
     }
 
-    await addLoan({
+    const loanDate = new Date().toISOString();
+    const expectedReturnDate = data.expectedReturnDate.toISOString();
+
+    const loanId = await addLoan({
       studentId: data.studentId,
       bookCode: data.bookCode,
-      loanDate: new Date().toISOString(),
-      expectedReturnDate: data.expectedReturnDate.toISOString(),
+      loanDate,
+      expectedReturnDate,
     });
-    showSuccess('Empréstimo registrado com sucesso!');
+
+    const newLoan: Loan = {
+      id: loanId,
+      studentId: data.studentId,
+      bookCode: data.bookCode,
+      loanDate,
+      expectedReturnDate,
+    };
+
+    setLastAddedLoan(newLoan);
     setIsDialogOpen(false);
+    setIsPrintDialogOpen(true);
+  };
+
+  const handleConfirmPrint = () => {
+    if (lastAddedLoan) {
+      handlePrintLoan(lastAddedLoan);
+    }
+    setIsPrintDialogOpen(false);
+    setLastAddedLoan(null);
+    showSuccess('Empréstimo registrado com sucesso!');
+  };
+
+  const handleCancelPrint = () => {
+    setIsPrintDialogOpen(false);
+    setLastAddedLoan(null);
+    showSuccess('Empréstimo registrado com sucesso!');
   };
 
   const handleReturnLoan = async (loanId: string) => {
     await updateLoan(loanId, { returnDate: new Date().toISOString() });
     showSuccess('Devolução registrada com sucesso!');
+  };
+
+  const handlePrintLoan = (loan: Loan) => {
+    const student = studentMap.get(loan.studentId);
+    const book = bookMap.get(loan.bookCode);
+    const schoolName = settings.schoolName || 'Escola';
+
+    const reportWindow = window.open('', '_blank');
+    if (reportWindow) {
+      reportWindow.document.write(`
+        <html>
+          <head>
+            <title>Comprovante de Empréstimo</title>
+            <style>
+              * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+              }
+              body {
+                font-family: 'Arial', sans-serif;
+                width: 80mm;
+                padding: 2mm;
+                color: #000;
+                font-size: 8pt;
+              }
+              @page {
+                size: 80mm auto;
+                margin: 0;
+              }
+              @media print {
+                html, body {
+                  width: 80mm;
+                }
+              }
+              .header {
+                text-align: center;
+                border-bottom: 1px dashed #000;
+                padding-bottom: 2mm;
+                margin-bottom: 2mm;
+              }
+              .header h1 {
+                font-size: 10pt;
+                font-weight: bold;
+                margin-bottom: 1mm;
+              }
+              .header h2 {
+                font-size: 8pt;
+                font-weight: normal;
+              }
+              .info {
+                margin-bottom: 2mm;
+              }
+              .info-row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 1mm;
+                font-size: 8pt;
+              }
+              .info-row .label {
+                font-weight: bold;
+              }
+              .separator {
+                border-top: 1px dashed #000;
+                margin: 2mm 0;
+              }
+              .signature {
+                margin-top: 5mm;
+                text-align: center;
+              }
+              .signature-line {
+                border-top: 1px solid #000;
+                width: 60mm;
+                margin: 0 auto;
+                padding-top: 1mm;
+                font-size: 7pt;
+              }
+              .footer {
+                text-align: center;
+                margin-top: 3mm;
+                font-size: 7pt;
+                border-top: 1px dashed #000;
+                padding-top: 2mm;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>${schoolName}</h1>
+              <h2>COMPROVANTE DE EMPRÉSTIMO</h2>
+            </div>
+            <div class="info">
+              <div class="info-row">
+                <span class="label">Aluno:</span>
+                <span>${student?.name || 'N/A'}</span>
+              </div>
+              <div class="info-row">
+                <span class="label">Turma:</span>
+                <span>${student?.class || 'N/A'}</span>
+              </div>
+              <div class="separator"></div>
+              <div class="info-row">
+                <span class="label">Livro:</span>
+                <span>${book?.title || 'N/A'}</span>
+              </div>
+              <div class="info-row">
+                <span class="label">Código:</span>
+                <span>${book?.code || 'N/A'}</span>
+              </div>
+              <div class="info-row">
+                <span class="label">Prateleira:</span>
+                <span>${book?.shelf || 'N/A'}</span>
+              </div>
+              <div class="separator"></div>
+              <div class="info-row">
+                <span class="label">Empréstimo:</span>
+                <span>${format(new Date(loan.loanDate), 'dd/MM/yyyy', { locale: ptBR })}</span>
+              </div>
+              <div class="info-row">
+                <span class="label">Devolução:</span>
+                <span>${format(new Date(loan.expectedReturnDate), 'dd/MM/yyyy', { locale: ptBR })}</span>
+              </div>
+            </div>
+            <div class="signature">
+              <div class="signature-line">
+                Assinatura do Aluno
+              </div>
+            </div>
+            <div class="footer">
+              ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+            </div>
+          </body>
+        </html>
+      `);
+      reportWindow.document.close();
+      setTimeout(() => {
+        reportWindow.print();
+      }, 500);
+    }
   };
 
   const handleGenerateReport = () => {
@@ -283,12 +457,18 @@ const LoansPage = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {!loan.returnDate && (
-                        <Button variant="outline" size="sm" onClick={() => handleReturnLoan(loan.id)}>
-                          <Undo2 className="mr-2 h-4 w-4" />
-                          Devolver
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => handlePrintLoan(loan)}>
+                          <Printer className="mr-2 h-4 w-4" />
+                          Imprimir
                         </Button>
-                      )}
+                        {!loan.returnDate && (
+                          <Button variant="outline" size="sm" onClick={() => handleReturnLoan(loan.id)}>
+                            <Undo2 className="mr-2 h-4 w-4" />
+                            Devolver
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -303,6 +483,25 @@ const LoansPage = () => {
           </TableBody>
         </Table>
       </div>
+      <Dialog open={isPrintDialogOpen} onOpenChange={setIsPrintDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Imprimir Comprovante</DialogTitle>
+            <DialogDescription>
+              Deseja imprimir o comprovante de empréstimo?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" onClick={handleCancelPrint}>
+              Não
+            </Button>
+            <Button onClick={handleConfirmPrint}>
+              <Printer className="mr-2 h-4 w-4" />
+              Sim, Imprimir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
