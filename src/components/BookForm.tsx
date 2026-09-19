@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -8,13 +9,17 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
-  DialogClose,
 } from '@/components/ui/dialog';
 import { Book } from '@/lib/types';
 import { CategoryCombobox } from './CategoryCombobox';
 import { ShelfCombobox } from './ShelfCombobox';
-import { BookTypeCombobox } from './BookTypeCombobox'; // New: Import BookTypeCombobox
+import { BookTypeCombobox } from './BookTypeCombobox';
+import { useSettings } from '@/hooks/useSettings';
+import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
+import { fetchBookDetailsByIsbn, isLikelyIsbn } from '@/lib/isbnService';
+import { showSuccess, showError, showInfo } from '@/utils/toast';
+import { Barcode, Sparkles, Loader2, Search } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 const bookSchema = z.object({
   code: z.string().min(1, 'Código é obrigatório'),
@@ -24,7 +29,7 @@ const bookSchema = z.object({
   publisher: z.string().min(1, 'Editora é obrigatória'),
   shelf: z.string().min(1, 'Prateleira é obrigatória'),
   category: z.string().min(1, 'Categoria é obrigatória'),
-  bookType: z.string().min(1, 'Tipo é obrigatório'), // bookType is required
+  bookType: z.string().min(1, 'Tipo é obrigatório'),
   quantity: z.coerce.number().min(1, 'A quantidade deve ser pelo menos 1'),
 });
 
@@ -36,15 +41,26 @@ interface BookFormProps {
   closeDialog: () => void;
   categories: string[];
   shelves: string[];
-  bookTypes: string[]; // New: Pass bookTypes to BookForm
+  bookTypes: string[];
 }
 
-const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes }: BookFormProps) => { // New: Receive bookTypes
+const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes }: BookFormProps) => {
+  const { settings } = useSettings();
+  const scannerSettings = settings.barcodeScanner || {
+    enabled: true,
+    targetField: 'code',
+    autoOpenAddModal: true,
+    autoFetchBookDetails: true,
+  };
+
+  const [isFetchingIsbn, setIsFetchingIsbn] = useState(false);
+
   const {
     register,
     handleSubmit,
     control,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<BookFormData>({
     resolver: zodResolver(bookSchema),
@@ -60,12 +76,75 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
       quantity: 1,
     },
   });
-  
-  // Watch the fields to ensure the Comboboxes re-render with the selected value
+
   const watchedCategory = watch('category');
   const watchedShelf = watch('shelf');
   const watchedBookType = watch('bookType');
+  const watchedIsbn = watch('isbn');
 
+  // Consulta detalhes do livro online
+  const handleFetchIsbnData = async (isbnValue: string) => {
+    if (!isbnValue.trim()) {
+      showError('Informe um ISBN para buscar.');
+      return;
+    }
+
+    setIsFetchingIsbn(true);
+    try {
+      const details = await fetchBookDetailsByIsbn(isbnValue);
+      if (details) {
+        if (details.title) setValue('title', details.title.toUpperCase());
+        if (details.author) setValue('author', details.author.toUpperCase());
+        if (details.publisher) setValue('publisher', details.publisher.toUpperCase());
+
+        // Se tiver categoria sugerida e estiver nas cadastradas
+        if (details.category) {
+          const upperCat = details.category.toUpperCase();
+          const matchedCategory = categories.find((c) => upperCat.includes(c) || c.includes(upperCat));
+          if (matchedCategory) {
+            setValue('category', matchedCategory);
+          }
+        }
+
+        showSuccess(`Dados do livro "${details.title}" preenchidos automaticamente!`);
+      } else {
+        showInfo('ISBN não localizado nos cadastros online. Preencha manualmente.');
+      }
+    } catch (err) {
+      showError('Erro ao consultar ISBN na internet.');
+    } finally {
+      setIsFetchingIsbn(false);
+    }
+  };
+
+  // Reconhecimento de leitor de código de barras durante o formulário
+  useBarcodeScanner({
+    enabled: scannerSettings.enabled,
+    onScan: async (scannedCode) => {
+      const code = scannedCode.trim();
+      const isIsbn = isLikelyIsbn(code);
+
+      if (scannerSettings.targetField === 'isbn' || (isIsbn && scannerSettings.targetField === 'both')) {
+        setValue('isbn', code);
+        if (!watch('code')) setValue('code', code);
+        showSuccess(`ISBN "${code}" lido pelo leitor!`);
+
+        if (scannerSettings.autoFetchBookDetails) {
+          await handleFetchIsbnData(code);
+        }
+      } else {
+        setValue('code', code);
+        if (isIsbn && !watch('isbn')) {
+          setValue('isbn', code);
+        }
+        showSuccess(`Código "${code}" capturado pelo leitor!`);
+
+        if (isIsbn && scannerSettings.autoFetchBookDetails) {
+          await handleFetchIsbnData(code);
+        }
+      }
+    },
+  });
 
   const handleFormSubmit = (data: BookFormData) => {
     const transformedData = {
@@ -82,27 +161,80 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
   };
 
   return (
-    <DialogContent className="sm:max-w-[425px]">
+    <DialogContent className="sm:max-w-[480px]">
       <DialogHeader>
-        <DialogTitle>{book ? 'Editar Livro' : 'Adicionar Livro'}</DialogTitle>
+        <div className="flex items-center justify-between pr-4">
+          <DialogTitle>{book ? 'Editar Livro' : 'Adicionar Livro'}</DialogTitle>
+          {scannerSettings.enabled && (
+            <Badge variant="outline" className="text-[11px] gap-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-300">
+              <Barcode className="h-3 w-3" />
+              Leitor Pronto
+            </Badge>
+          )}
+        </div>
       </DialogHeader>
+
       <form onSubmit={handleSubmit(handleFormSubmit)}>
-        <div className="grid gap-3 py-4">
+        <div className="grid gap-3 py-3">
+          {/* Código do Livro */}
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="code" className="text-right">Código</Label>
-            <Input id="code" {...register('code')} className="col-span-3 uppercase" />
+            <Label htmlFor="code" className="text-right flex items-center justify-end gap-1 font-semibold">
+              <Barcode className="h-3.5 w-3.5 text-muted-foreground" />
+              Código
+            </Label>
+            <Input
+              id="code"
+              {...register('code')}
+              placeholder="Ex: LIV-001 ou bipe com leitor"
+              className="col-span-3 uppercase"
+            />
             {errors.code && <p className="col-span-4 text-red-500 text-sm text-right">{errors.code.message}</p>}
           </div>
+
+          {/* ISBN com Botão de Consulta Online */}
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="isbn" className="text-right">ISBN</Label>
+            <div className="col-span-3 flex gap-2">
+              <Input
+                id="isbn"
+                {...register('isbn')}
+                placeholder="Ex: 9788535902778 ou bipe da capa"
+                className="flex-grow font-mono text-sm"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => handleFetchIsbnData(watchedIsbn)}
+                disabled={isFetchingIsbn}
+                title="Consultar título e autor na internet pelo ISBN"
+                className="shrink-0"
+              >
+                {isFetchingIsbn ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                ) : (
+                  <Sparkles className="h-4 w-4 text-amber-500" />
+                )}
+              </Button>
+            </div>
+            {errors.isbn && <p className="col-span-4 text-red-500 text-sm text-right">{errors.isbn.message}</p>}
+          </div>
+
+          {/* Título */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="title" className="text-right">Título</Label>
             <Input id="title" {...register('title')} className="col-span-3 uppercase" />
             {errors.title && <p className="col-span-4 text-red-500 text-sm text-right">{errors.title.message}</p>}
           </div>
+
+          {/* Autor */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="author" className="text-right">Autor</Label>
             <Input id="author" {...register('author')} className="col-span-3 uppercase" />
             {errors.author && <p className="col-span-4 text-red-500 text-sm text-right">{errors.author.message}</p>}
           </div>
+
+          {/* Categoria */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="category" className="text-right">Categoria</Label>
             <div className="col-span-3">
@@ -112,7 +244,7 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
                 render={({ field }) => (
                   <CategoryCombobox
                     categories={categories}
-                    value={watchedCategory} // Use watched value
+                    value={watchedCategory}
                     onChange={field.onChange}
                   />
                 )}
@@ -120,11 +252,15 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
             </div>
             {errors.category && <p className="col-span-4 text-red-500 text-sm text-right">{errors.category.message}</p>}
           </div>
+
+          {/* Editora */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="publisher" className="text-right">Editora</Label>
             <Input id="publisher" {...register('publisher')} className="col-span-3 uppercase" />
             {errors.publisher && <p className="col-span-4 text-red-500 text-sm text-right">{errors.publisher.message}</p>}
           </div>
+
+          {/* Tipo de Livro */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="bookType" className="text-right">Tipo</Label>
             <div className="col-span-3">
@@ -134,7 +270,7 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
                 render={({ field }) => (
                   <BookTypeCombobox
                     types={bookTypes}
-                    value={watchedBookType} // Use watched value
+                    value={watchedBookType}
                     onChange={field.onChange}
                   />
                 )}
@@ -142,11 +278,8 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
             </div>
             {errors.bookType && <p className="col-span-4 text-red-500 text-sm text-right">{errors.bookType.message}</p>}
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="isbn" className="text-right">ISBN</Label>
-            <Input id="isbn" {...register('isbn')} className="col-span-3" />
-            {errors.isbn && <p className="col-span-4 text-red-500 text-sm text-right">{errors.isbn.message}</p>}
-          </div>
+
+          {/* Prateleira */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="shelf" className="text-right">Prateleira</Label>
             <div className="col-span-3">
@@ -156,7 +289,7 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
                 render={({ field }) => (
                   <ShelfCombobox
                     shelves={shelves}
-                    value={watchedShelf} // Use watched value
+                    value={watchedShelf}
                     onChange={field.onChange}
                   />
                 )}
@@ -164,18 +297,23 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
             </div>
             {errors.shelf && <p className="col-span-4 text-red-500 text-sm text-right">{errors.shelf.message}</p>}
           </div>
+
+          {/* Quantidade */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="quantity" className="text-right">Quantidade</Label>
-            <Input id="quantity" type="number" {...register('quantity')} className="col-span-3" />
+            <Input id="quantity" type="number" min="1" {...register('quantity')} className="col-span-3" />
             {errors.quantity && <p className="col-span-4 text-red-500 text-sm text-right">{errors.quantity.message}</p>}
           </div>
         </div>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="secondary">Cancelar</Button>
-          </DialogClose>
-          <Button type="submit">{book ? 'Salvar' : 'Adicionar'}</Button>
-        </DialogFooter>
+
+        <div className="flex justify-end gap-2 pt-2 border-t">
+          <Button type="button" variant="outline" onClick={closeDialog}>
+            Cancelar
+          </Button>
+          <Button type="submit">
+            {book ? 'Salvar Alterações' : 'Cadastrar Livro'}
+          </Button>
+        </div>
       </form>
     </DialogContent>
   );

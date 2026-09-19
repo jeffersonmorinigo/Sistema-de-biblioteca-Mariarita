@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { showSuccess, showError } from '@/utils/toast';
 import { Trash2, Eraser, AlertTriangle } from 'lucide-react';
 import { Book, Student, Loan } from '@/lib/types';
+import { BarcodeScannerConfig } from '@/components/BarcodeScannerConfig';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -197,6 +198,10 @@ const SettingsPage = () => {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Configurações</h1>
+
+      {/* Configuração do Leitor de Código de Barras */}
+      <BarcodeScannerConfig />
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>

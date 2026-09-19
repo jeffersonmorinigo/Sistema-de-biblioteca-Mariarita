@@ -15,11 +15,15 @@ import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, addDays } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { Book, Student } from '@/lib/types';
 import { StudentCombobox } from './StudentCombobox';
 import { BookCombobox } from './BookCombobox';
 import { useState } from 'react';
+import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
+import { useSettings } from '@/hooks/useSettings';
+import { showSuccess } from '@/utils/toast';
+import { Barcode } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 const loanSchema = z.object({
   studentId: z.string().min(1, 'Selecione um aluno'),
@@ -36,11 +40,20 @@ interface LoanFormProps {
 }
 
 const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
+  const { settings } = useSettings();
+  const scannerSettings = settings.barcodeScanner || {
+    enabled: true,
+    targetField: 'code',
+    autoOpenAddModal: true,
+    autoFetchBookDetails: true,
+  };
+
   const {
     handleSubmit,
     control,
     formState: { errors },
     reset,
+    setValue,
   } = useForm<LoanFormData>({
     resolver: zodResolver(loanSchema),
     defaultValues: {
@@ -53,6 +66,33 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
   // Local state to ensure immediate UI updates
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [selectedBookCode, setSelectedBookCode] = useState('');
+
+  // Permite bipar o livro com o leitor para selecionar no empréstimo
+  useBarcodeScanner({
+    enabled: scannerSettings.enabled,
+    onScan: (scannedCode) => {
+      const code = scannedCode.trim().toUpperCase();
+      const foundBook = books.find(
+        (b) =>
+          b.code.toUpperCase() === code ||
+          (b.isbn && b.isbn.replace(/[^0-9X]/gi, '') === code.replace(/[^0-9X]/gi, ''))
+      );
+
+      if (foundBook) {
+        setValue('bookCode', foundBook.code);
+        setSelectedBookCode(foundBook.code);
+        showSuccess(`Livro selecionado via leitor: "${foundBook.title}"`);
+        return;
+      }
+
+      const foundStudent = students.find((s) => s.id === code || s.name.toUpperCase() === code);
+      if (foundStudent) {
+        setValue('studentId', foundStudent.id);
+        setSelectedStudentId(foundStudent.id);
+        showSuccess(`Aluno selecionado: "${foundStudent.name}"`);
+      }
+    },
+  });
 
   const handleFormSubmit = (data: LoanFormData) => {
     onSubmit(data);

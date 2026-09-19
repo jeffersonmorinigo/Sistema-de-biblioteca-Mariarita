@@ -95,12 +95,20 @@ export function subscribeToCollection<T>(
 
 const SETTINGS_DOC_ID = 'app_settings';
 
+export interface BarcodeScannerSettings {
+    enabled: boolean;
+    targetField: 'code' | 'isbn' | 'both';
+    autoOpenAddModal: boolean;
+    autoFetchBookDetails: boolean;
+}
+
 export interface AppSettings {
     schoolName: string;
     book_categories: string[];
     student_classes: string[];
     book_shelves: string[];
     book_types: string[];
+    barcodeScanner?: BarcodeScannerSettings;
 }
 
 const defaultSettings: AppSettings = {
@@ -119,6 +127,12 @@ const defaultSettings: AppSettings = {
     ],
     book_shelves: ['N/A'],
     book_types: ['PESQUISA', 'DIDÁTICO', 'LITERATURA'],
+    barcodeScanner: {
+        enabled: true,
+        targetField: 'code',
+        autoOpenAddModal: true,
+        autoFetchBookDetails: true,
+    },
 };
 
 /**

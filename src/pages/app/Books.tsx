@@ -26,12 +26,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { PlusCircle, Search, Edit, Trash2, Upload } from 'lucide-react';
+import { PlusCircle, Search, Edit, Trash2, Upload, Barcode } from 'lucide-react';
 import { normalizeString } from '@/utils/stringUtils';
 import BookForm, { BookFormData } from '@/components/BookForm';
 import ImportBooksDialog from '@/components/ImportBooksDialog';
-import { showSuccess, showError } from '@/utils/toast';
+import { showSuccess, showError, showInfo } from '@/utils/toast';
 import { useSettings } from '@/hooks/useSettings';
+import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
+import { isLikelyIsbn } from '@/lib/isbnService';
+import { Badge } from '@/components/ui/badge';
 
 const BooksPage = () => {
   const { data: books, add: addBook, update: updateBook, remove: removeBook } = useFirestore<Book>('books');
@@ -44,6 +47,52 @@ const BooksPage = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+
+  const scannerSettings = settings.barcodeScanner || {
+    enabled: true,
+    targetField: 'code',
+    autoOpenAddModal: true,
+    autoFetchBookDetails: true,
+  };
+
+  // Escuta bips do leitor na tela de livros quando nenhum modal estiver aberto
+  useBarcodeScanner({
+    enabled: scannerSettings.enabled && !isAddDialogOpen && !isImportDialogOpen,
+    onScan: (scannedCode) => {
+      const code = scannedCode.trim();
+      const existingBook = books.find(
+        (b) =>
+          b.code.toUpperCase() === code.toUpperCase() ||
+          (b.isbn && b.isbn.replace(/[^0-9X]/gi, '') === code.replace(/[^0-9X]/gi, ''))
+      );
+
+      if (existingBook) {
+        setSearchTerm(existingBook.code);
+        showSuccess(`Livro localizado: "${existingBook.title}" (Código: ${existingBook.code})`);
+      } else {
+        if (scannerSettings.autoOpenAddModal) {
+          const isIsbn = isLikelyIsbn(code);
+          setSelectedBook({
+            id: '',
+            code: scannerSettings.targetField === 'code' ? code : (isIsbn ? code : ''),
+            isbn: isIsbn ? code : '',
+            title: '',
+            author: '',
+            publisher: '',
+            shelf: shelves[0] || 'N/A',
+            category: categories[0] || 'GERAL',
+            bookType: bookTypes[0] || 'LIVRO',
+            quantity: 1,
+          });
+          setIsAddDialogOpen(true);
+          showInfo(`Código "${code}" capturado pelo leitor! Abrindo cadastro...`);
+        } else {
+          setSearchTerm(code);
+          showInfo(`Código lido: "${code}" (Nenhum livro cadastrado)`);
+        }
+      }
+    },
+  });
 
   const activeLoansByCode = useMemo(() => {
     const counts = new Map<string, number>();
@@ -136,7 +185,15 @@ const BooksPage = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Gerenciamento de Livros</h1>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+        <h1 className="text-3xl font-bold">Gerenciamento de Livros</h1>
+        {scannerSettings.enabled && (
+          <Badge variant="outline" className="gap-1.5 text-xs text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-300 py-1 px-3">
+            <Barcode className="h-3.5 w-3.5 text-emerald-600" />
+            Leitor Ativo: bipe para buscar ou cadastrar
+          </Badge>
+        )}
+      </div>
 
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <div className="relative w-full sm:max-w-sm">

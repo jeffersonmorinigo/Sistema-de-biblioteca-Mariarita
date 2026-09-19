@@ -27,6 +27,12 @@ export const defaultSettings: AppSettings = {
   ],
   book_shelves: ['PRATELEIRA 1', 'PRATELEIRA 2', 'PRATELEIRA 3', 'GERAL'],
   book_types: ['LIVRO', 'REVISTA', 'GIBI', 'DICIONÁRIO', 'ENCICLOPÉDIA'],
+  barcodeScanner: {
+    enabled: true,
+    targetField: 'code',
+    autoOpenAddModal: true,
+    autoFetchBookDetails: true,
+  },
 };
 
 // Emite evento para que componentes reajam imediatamente à mudança no banco local
