@@ -39,20 +39,21 @@ const LoansPage = () => {
   const [lastAddedLoan, setLastAddedLoan] = useState<Loan | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const studentMap = useMemo(() => new Map(students.map(s => [s.id, s])), [students]);
-  const bookMap = useMemo(() => new Map(books.map(b => [b.code, b])), [books]);
+  const studentMap = useMemo(() => new Map((students || []).filter(s => s && s.id).map(s => [s.id, s])), [students]);
+  const bookMap = useMemo(() => new Map((books || []).filter(b => b && b.code).map(b => [b.code, b])), [books]);
 
   const filteredAndSortedLoans = useMemo(() => {
-    const filtered = loans.filter(loan => {
+    const filtered = (loans || []).filter(loan => {
+      if (!loan) return false;
       if (!searchTerm) return true;
       const lowercasedFilter = searchTerm.toLowerCase();
       const student = studentMap.get(loan.studentId);
       const book = bookMap.get(loan.bookCode);
 
-      const studentName = student?.name.toLowerCase() || '';
-      const studentClass = student?.class.toLowerCase() || '';
-      const bookTitle = book?.title.toLowerCase() || '';
-      const bookShelf = book?.shelf.toLowerCase() || '';
+      const studentName = student?.name?.toLowerCase() || '';
+      const studentClass = student?.class?.toLowerCase() || '';
+      const bookTitle = book?.title?.toLowerCase() || '';
+      const bookShelf = book?.shelf?.toLowerCase() || '';
 
       return studentName.includes(lowercasedFilter)
         || studentClass.includes(lowercasedFilter)
@@ -410,10 +411,11 @@ const LoansPage = () => {
               </Button>
             </DialogTrigger>
             <LoanForm
-              key={isDialogOpen ? 'open' : 'closed'}
+              isOpen={isDialogOpen}
               students={students}
               books={books}
               onSubmit={handleAddLoan}
+              closeDialog={() => setIsDialogOpen(false)}
             />
           </Dialog>
         </div>

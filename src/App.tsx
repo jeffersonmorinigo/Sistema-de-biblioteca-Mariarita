@@ -12,6 +12,7 @@ import NotFound from './pages/NotFound';
 import { Toaster } from '@/components/ui/sonner';
 import InitialBackupNotification from '@/components/InitialBackupNotification'; // Importando o novo componente
 import { useEffect } from 'react';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 // A simple component to redirect based on auth status
 const HomeRedirect = () => {
@@ -74,10 +75,12 @@ const App = () => {
   }, []);
 
   return (
-    <AuthProvider>
-      <AppRoutes />
-      <Toaster richColors />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppRoutes />
+        <Toaster richColors />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 };
 

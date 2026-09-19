@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -7,23 +8,23 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { CalendarIcon } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { CalendarIcon, Barcode } from 'lucide-react';
 import { format, addDays } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { Book, Student } from '@/lib/types';
 import { StudentCombobox } from './StudentCombobox';
 import { BookCombobox } from './BookCombobox';
-import { useState } from 'react';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { useSettings } from '@/hooks/useSettings';
 import { showSuccess } from '@/utils/toast';
-import { Barcode } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 const loanSchema = z.object({
   studentId: z.string().min(1, 'Selecione um aluno'),
@@ -34,14 +35,16 @@ const loanSchema = z.object({
 export type LoanFormData = z.infer<typeof loanSchema>;
 
 interface LoanFormProps {
-  students: Student[];
-  books: Book[];
+  students?: Student[];
+  books?: Book[];
   onSubmit: (data: LoanFormData) => void;
+  isOpen?: boolean;
+  closeDialog?: () => void;
 }
 
-const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
+const LoanForm = ({ students = [], books = [], onSubmit, isOpen, closeDialog }: LoanFormProps) => {
   const { settings } = useSettings();
-  const scannerSettings = settings.barcodeScanner || {
+  const scannerSettings = settings?.barcodeScanner || {
     enabled: true,
     targetField: 'code',
     autoOpenAddModal: true,
@@ -67,37 +70,51 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [selectedBookCode, setSelectedBookCode] = useState('');
 
+  // Reseta os campos limpos quando o modal for aberto
+  useEffect(() => {
+    if (isOpen) {
+      reset({
+        studentId: '',
+        bookCode: '',
+        expectedReturnDate: addDays(new Date(), 15),
+      });
+      setSelectedStudentId('');
+      setSelectedBookCode('');
+    }
+  }, [isOpen, reset]);
+
   // Permite bipar o livro com o leitor para selecionar no empréstimo
   useBarcodeScanner({
-    enabled: scannerSettings.enabled,
+    enabled: scannerSettings.enabled && isOpen !== false,
     onScan: (scannedCode) => {
       const code = scannedCode.trim().toUpperCase();
-      const foundBook = books.find(
+      const foundBook = (books || []).find(
         (b) =>
-          b.code.toUpperCase() === code ||
-          (b.isbn && b.isbn.replace(/[^0-9X]/gi, '') === code.replace(/[^0-9X]/gi, ''))
+          (b?.code && b.code.toUpperCase() === code) ||
+          (b?.isbn && b.isbn.replace(/[^0-9X]/gi, '') === code.replace(/[^0-9X]/gi, ''))
       );
 
       if (foundBook) {
         setValue('bookCode', foundBook.code);
         setSelectedBookCode(foundBook.code);
-        showSuccess(`Livro selecionado via leitor: "${foundBook.title}"`);
+        showSuccess(`Livro selecionado via leitor: "${foundBook.title || foundBook.code}"`);
         return;
       }
 
-      const foundStudent = students.find((s) => s.id === code || s.name.toUpperCase() === code);
+      const foundStudent = (students || []).find(
+        (s) => (s?.id && s.id === code) || (s?.name && s.name.toUpperCase() === code)
+      );
       if (foundStudent) {
         setValue('studentId', foundStudent.id);
         setSelectedStudentId(foundStudent.id);
-        showSuccess(`Aluno selecionado: "${foundStudent.name}"`);
+        showSuccess(`Aluno selecionado: "${foundStudent.name || 'Aluno'}"`);
       }
     },
   });
 
   const handleFormSubmit = (data: LoanFormData) => {
     onSubmit(data);
-    reset(); // Resets react-hook-form state
-    // Manually reset local state to clear the comboboxes visually
+    reset();
     setSelectedStudentId('');
     setSelectedBookCode('');
   };
@@ -105,7 +122,18 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
   return (
     <DialogContent className="sm:max-w-[600px]">
       <DialogHeader>
-        <DialogTitle>Registrar Novo Empréstimo</DialogTitle>
+        <div className="flex items-center justify-between pr-4">
+          <DialogTitle>Registrar Novo Empréstimo</DialogTitle>
+          {scannerSettings.enabled && (
+            <Badge variant="outline" className="text-[11px] gap-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-300">
+              <Barcode className="h-3 w-3" />
+              Leitor Pronto (Bipe o livro)
+            </Badge>
+          )}
+        </div>
+        <DialogDescription className="text-sm text-muted-foreground">
+          Selecione o aluno e o livro para registrar o empréstimo no sistema.
+        </DialogDescription>
       </DialogHeader>
       <form onSubmit={handleSubmit(handleFormSubmit)}>
         <div className="grid gap-5 py-4 grid-cols-1 sm:grid-cols-2">
@@ -149,47 +177,65 @@ const LoanForm = ({ students, books, onSubmit }: LoanFormProps) => {
             {errors.bookCode && <p className="text-red-500 text-sm mt-1">{errors.bookCode.message}</p>}
           </div>
 
-          {/* Data de Devolução ocupa a largura total em telas pequenas, ou a primeira coluna em telas grandes */}
+          {/* Data de Devolução ocupa a largura total */}
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="expectedReturnDate">Data Prevista de Devolução</Label>
             <Controller
               name="expectedReturnDate"
               control={control}
-              render={({ field }) => (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant={"outline"}
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !field.value && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {field.value ? format(field.value, 'PPP', { locale: ptBR }) : <span>Escolha uma data</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={field.value}
-                      onSelect={field.onChange}
-                      initialFocus
-                      locale={ptBR}
-                      // Garante que a data mínima seja hoje
-                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                    />
-                  </PopoverContent>
-                </Popover>
-              )}
+              render={({ field }) => {
+                const dateValue = field.value instanceof Date 
+                  ? field.value 
+                  : (field.value ? new Date(field.value) : null);
+                const isValidDate = dateValue && !isNaN(dateValue.getTime());
+
+                return (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !isValidDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {isValidDate ? (
+                          format(dateValue, 'PPP', { locale: ptBR })
+                        ) : (
+                          <span>Escolha uma data</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={isValidDate ? dateValue : undefined}
+                        onSelect={(newDate) => {
+                          field.onChange(newDate);
+                        }}
+                        initialFocus
+                        locale={ptBR}
+                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                );
+              }}
             />
             {errors.expectedReturnDate && <p className="text-red-500 text-sm mt-1">{errors.expectedReturnDate.message}</p>}
           </div>
         </div>
         <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="secondary">Cancelar</Button>
-          </DialogClose>
+          {closeDialog ? (
+            <Button type="button" variant="secondary" onClick={closeDialog}>
+              Cancelar
+            </Button>
+          ) : (
+            <DialogClose asChild>
+              <Button type="button" variant="secondary">Cancelar</Button>
+            </DialogClose>
+          )}
           <Button type="submit">Registrar</Button>
         </DialogFooter>
       </form>

@@ -23,19 +23,19 @@ import { Book, Loan } from "@/lib/types"
 import { useFirestore } from "@/hooks/useFirestore"
 
 interface BookComboboxProps {
-  books: Book[];
+  books?: Book[];
   value: string;
   onChange: (value: string) => void;
 }
 
-export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
+export function BookCombobox({ books = [], value, onChange }: BookComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const { data: loans } = useFirestore<Loan>('loans');
 
   const activeLoansByCode = useMemo(() => {
     const counts = new Map<string, number>();
-    loans.forEach(loan => {
-      if (!loan.returnDate) {
+    (loans || []).forEach(loan => {
+      if (loan && !loan.returnDate && loan.bookCode) {
         counts.set(loan.bookCode, (counts.get(loan.bookCode) || 0) + 1);
       }
     });
@@ -43,20 +43,23 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
   }, [loans]);
 
   const availableBooks = useMemo(() => {
-    return books
+    return (books || [])
+      .filter(book => Boolean(book && book.code))
       .map(book => {
-        const loanedCount = activeLoansByCode.get(book.code) || 0;
-        const availableCount = book.quantity - loanedCount;
+        const loanedCount = book.code ? (activeLoansByCode.get(book.code) || 0) : 0;
+        const totalQty = typeof book.quantity === 'number' ? book.quantity : (parseInt(String(book.quantity || 1), 10) || 1);
+        const availableCount = totalQty - loanedCount;
         return { ...book, availableCount };
       })
       .filter(book => book.availableCount > 0)
-      .sort((a, b) => a.title.localeCompare(b.title));
+      .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'pt-BR', { sensitivity: 'base' }));
   }, [books, activeLoansByCode]);
 
   const selectedBookTitle = useMemo(() => {
     if (!value) return "Selecione um livro disponível...";
-    const book = books.find(b => b.code === value);
-    return book ? `${book.title} (Cód: ${book.code} | Prat: ${book.shelf || 'N/A'})` : "Selecione um livro disponível...";
+    const book = (books || []).find(b => b && b.code === value);
+    if (!book) return "Selecione um livro disponível...";
+    return `${book.title || 'Sem título'} (Cód: ${book.code} | Prat: ${book.shelf || 'N/A'})`;
   }, [value, books]);
 
   return (
@@ -73,12 +76,13 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-[--radix-popover-trigger-width] p-0"
+        className="w-[var(--radix-popover-trigger-width,320px)] max-w-[90vw] p-0"
         side="bottom"
         align="start"
       >
-        <Command filter={(value, search) => {
-          if (normalizeString(value).includes(normalizeString(search))) return 1;
+        <Command filter={(val, search) => {
+          if (!search) return 1;
+          if (normalizeString(val).includes(normalizeString(search))) return 1;
           return 0;
         }}>
           <CommandInput placeholder="Buscar por Título, Autor, Código, Prateleira..." />
@@ -87,8 +91,8 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
             <CommandGroup>
               {availableBooks.map((book) => (
                 <CommandItem
-                  key={book.id}
-                  value={`${book.title} ${book.author} ${book.shelf} ${book.code} ${book.isbn} ${book.category} ${book.bookType}`}
+                  key={book.id || book.code}
+                  value={`${book.title || ''} ${book.author || ''} ${book.shelf || ''} ${book.code || ''} ${book.isbn || ''} ${book.category || ''} ${book.bookType || ''}`}
                   onSelect={() => {
                     onChange(book.code)
                     setOpen(false)
@@ -102,13 +106,13 @@ export function BookCombobox({ books, value, onChange }: BookComboboxProps) {
                     )}
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{book.title}</p>
+                    <p className="font-medium truncate">{book.title || 'Sem título'}</p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground bg-slate-100 px-1.5 py-0.5 rounded">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
                         {book.code}
                       </span>
                       <span className="text-[10px] text-muted-foreground truncate">
-                        {book.author} | Prat: {book.shelf || 'N/A'}
+                        {book.author || 'Autor desc.'} | Prat: {book.shelf || 'N/A'}
                       </span>
                     </div>
                   </div>
