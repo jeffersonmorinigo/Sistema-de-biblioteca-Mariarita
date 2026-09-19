@@ -25,6 +25,8 @@ import { Download, Upload, AlertTriangle, Database, Trash2 } from 'lucide-react'
 import { showSuccess, showError } from '@/utils/toast';
 import { generateAndDownloadJsonBackup, generateAndDownloadSqlBackup, restoreFromBackup } from '@/lib/backupUtils';
 import { getAll, deleteDocument } from '@/lib/firestoreService';
+import { getLocalCollection, saveLocalCollection, enqueueSyncOperation } from '@/lib/localDb';
+import { processSyncQueue } from '@/lib/syncService';
 import { Loan } from '@/lib/types';
 
 const BackupPage = () => {
@@ -79,15 +81,56 @@ const BackupPage = () => {
       
       showSuccess(`Iniciando limpeza dos registros de ${filterLabel}...`);
       
-      const loans = await getAll<Loan>('loans');
-      
-      // Pattern: YYYY or YYYY-MM
-      const pattern = cleanupMonth === "all" ? cleanupYear : `${cleanupYear}-${cleanupMonth}`;
+      // 1. Obter empréstimos tanto do banco local quanto do Firestore
+      const localLoans = getLocalCollection<Loan>('loans');
+      let remoteLoans: Loan[] = [];
+      try {
+        remoteLoans = await getAll<Loan>('loans');
+      } catch (e) {
+        console.warn('[Cleanup] Não foi possível buscar diretamente do Firestore, usando banco local:', e);
+      }
 
-      const loansToDelete = loans.filter(loan => 
-        loan.loanDate.includes(pattern) || 
-        loan.expectedReturnDate.includes(pattern) ||
-        (loan.returnDate && loan.returnDate.includes(pattern))
+      // Unifica por ID para garantir que não falte nenhum registro
+      const loansMap = new Map<string, Loan>();
+      localLoans.forEach(l => { if (l && l.id) loansMap.set(l.id, l); });
+      remoteLoans.forEach(l => { if (l && l.id) loansMap.set(l.id, l); });
+      const allLoans = Array.from(loansMap.values());
+
+      const targetYear = cleanupYear.trim();
+      const targetMonth = cleanupMonth;
+
+      const matchesPeriod = (dateStr?: string) => {
+        if (!dateStr) return false;
+        const str = String(dateStr).trim();
+
+        // 1. Formato ISO ou prefixo (ex: "2026-09" ou "2026")
+        if (targetMonth === "all") {
+          if (str.startsWith(targetYear) || str.includes(`/${targetYear}`) || str.includes(`-${targetYear}`)) {
+            return true;
+          }
+        } else {
+          const monthPad = targetMonth.padStart(2, '0');
+          if (str.startsWith(`${targetYear}-${monthPad}`) || str.includes(`/${monthPad}/${targetYear}`)) {
+            return true;
+          }
+        }
+
+        // 2. Parse robusto via Date
+        const d = new Date(str);
+        if (!isNaN(d.getTime())) {
+          const yMatches = d.getFullYear().toString() === targetYear;
+          if (!yMatches) return false;
+          if (targetMonth === "all") return true;
+          const mMatches = (d.getMonth() + 1).toString().padStart(2, '0') === targetMonth.padStart(2, '0');
+          return mMatches;
+        }
+
+        return false;
+      };
+
+      const loansToDelete = allLoans.filter(loan => 
+        matchesPeriod(loan?.loanDate) || 
+        (!loan?.loanDate && matchesPeriod(loan?.expectedReturnDate))
       );
 
       if (loansToDelete.length === 0) {
@@ -96,19 +139,38 @@ const BackupPage = () => {
         return;
       }
 
-      console.log(`[Cleanup] Excluindo ${loansToDelete.length} registros para ${pattern}...`);
+      console.log(`[Cleanup] Excluindo ${loansToDelete.length} registros para ${filterLabel}...`);
       
-      const chunkSize = 10;
+      const idsToDelete = new Set(loansToDelete.map(l => l.id));
+
+      // 1. Remove do armazenamento local imediatamente para refletir na interface
+      const updatedLocalLoans = localLoans.filter(l => !idsToDelete.has(l.id));
+      saveLocalCollection('loans', updatedLocalLoans);
+
+      // 2. Enfileira operações de exclusão para sincronização com a nuvem
+      loansToDelete.forEach(loan => {
+        enqueueSyncOperation({
+          collection: 'loans',
+          docId: loan.id,
+          action: 'delete',
+        });
+      });
+
+      // 3. Tenta deletar diretamente no Firestore também
+      const chunkSize = 15;
       for (let i = 0; i < loansToDelete.length; i += chunkSize) {
         const chunk = loansToDelete.slice(i, i + chunkSize);
-        await Promise.all(chunk.map(loan => deleteDocument('loans', loan.id)));
+        await Promise.allSettled(chunk.map(loan => deleteDocument('loans', loan.id)));
       }
+
+      // 4. Executa processo da fila
+      processSyncQueue().catch(() => {});
 
       showSuccess(`${loansToDelete.length} registros de ${filterLabel} foram removidos com sucesso!`);
       setTimeout(() => window.location.reload(), 1500);
     } catch (error: any) {
       console.error('Erro ao limpar dados:', error);
-      showError(`Erro ao limpar dados: ${error.message}`);
+      showError(`Erro ao limpar dados: ${error.message || 'Erro desconhecido'}`);
     } finally {
       setIsProcessing(false);
     }
