@@ -1,7 +1,7 @@
 {
-  "name": "vite_react_shadcn_ts",
+  "name": "sistema-de-biblioteca-maria-rita",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "main": "electron-main.cjs",
   "scripts": {
@@ -92,8 +92,8 @@
     "vite": "^6.3.4"
   },
   "build": {
-    "appId": "com.biblioteca.app",
-    "productName": "Sistema de Biblioteca",
+    "appId": "com.bibliotecamariarita.app",
+    "productName": "Sistema de Biblioteca Maria Rita",
     "files": [
       "dist/**/*",
       "electron-main.cjs",

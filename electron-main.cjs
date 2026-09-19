@@ -9,7 +9,7 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    title: 'Sistema de Biblioteca', // Define o título da janela
+    title: 'Sistema de Biblioteca - Maria Rita', // Define o título da janela
     autoHideMenuBar: true, // Oculta a barra de menu
     icon: isDev
       ? path.join(__dirname, 'public', 'logo.png')
