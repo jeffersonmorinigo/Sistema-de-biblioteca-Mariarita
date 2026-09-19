@@ -15,7 +15,10 @@ service cloud.firestore {
     function isValidStudent() {
       let data = request.resource.data;
       return data.name is string && data.name.size() > 0 &&
-             data.class is string;
+             data.class is string &&
+             data.type is string && data.type.size() > 0 &&
+             data.isBlocked is bool &&
+             (data.blockDate == null || data.blockDate is string);
     }
 
     match /users/{userId} {
