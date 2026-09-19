@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '@/lib/types';
 import {
-  subscribeToCollection,
-  addDocument,
-  deleteDocument,
-} from '@/lib/firestoreService';
+  getLocalCollection,
+  upsertLocalItem,
+  removeLocalItem,
+  enqueueSyncOperation,
+} from '@/lib/localDb';
+import { startCollectionSync, processSyncQueue } from '@/lib/syncService';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -22,66 +24,60 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return localStorage.getItem('isAuthenticated') === 'true';
   });
-  const [users, setUsers] = useState<User[]>([]);
-  const [usersLoaded, setUsersLoaded] = useState(false);
 
-  // Subscribe to users collection in Firestore
+  // Inicializa imediatamente com os usuários locais (inclusive admin padrão)
+  const [users, setUsers] = useState<User[]>(() => {
+    const local = getLocalCollection<User>('users');
+    return local.length > 0
+      ? local
+      : [
+          {
+            id: 'admin_master',
+            name: 'Administrador',
+            email: 'admin@biblioteca.com',
+            password: 'admin123',
+          },
+        ];
+  });
+  const [usersLoaded, setUsersLoaded] = useState(true);
+
+  // Sincroniza usuários em tempo real com o Firestore
   useEffect(() => {
-    let isInitialLoad = true;
-
-    // Safety timeout: If Firestore doesn't respond in 15 seconds, proceed anyway
-    // to prevent the user from being permanently stuck on the loading screen.
-    const loadingTimeout = setTimeout(() => {
-      if (!usersLoaded) {
-        console.warn('Firestore initialization timed out. Proceeding...');
-        setUsersLoaded(true);
+    const unsubscribe = startCollectionSync<User>('users', (firestoreUsers) => {
+      if (firestoreUsers.length > 0) {
+        setUsers(firestoreUsers);
+      } else {
+        // Se a nuvem estiver vazia, envia os usuários locais (ex: admin padrão) para a nuvem
+        const currentLocal = getLocalCollection<User>('users');
+        currentLocal.forEach((u) => {
+          enqueueSyncOperation({
+            collection: 'users',
+            docId: u.id,
+            action: 'add',
+            data: u,
+          });
+        });
+        processSyncQueue().catch(() => {});
       }
-    }, 15000);
-
-    const unsubscribe = subscribeToCollection<User>('users', async (firestoreUsers) => {
-      console.log(`[Auth] Usuários recebidos do Firestore: ${firestoreUsers.length}`);
-      setUsers(firestoreUsers);
-
-      if (isInitialLoad) {
-        isInitialLoad = false;
-        clearTimeout(loadingTimeout); // Success, clear the safety timeout
-
-        // If Firestore is completely empty, try to migrate or create default admin
-        if (firestoreUsers.length === 0) {
-          console.log('[Auth] Banco de dados vazio. Iniciando migração/seeding...');
-
-          try {
-            const { migrateLocalToFirestore } = await import('@/lib/migrationUtils');
-            await migrateLocalToFirestore();
-
-            // Re-verificar após migração
-            const { getAll } = await import('@/lib/firestoreService');
-            const currentUsers = await getAll<User>('users');
-            if (currentUsers.length === 0) {
-              console.log('[Auth] Nenhum usuário migrado. Criando administrador padrão.');
-              await addDocument('users', {
-                name: 'Administrador',
-                email: 'admin@biblioteca.com',
-                password: 'admin123',
-              });
-            } else {
-              console.log(`[Auth] Migração concluída. ${currentUsers.length} usuários detectados.`);
-            }
-          } catch (err) {
-            console.error('[Auth] Erro na inicialização:', err);
-          }
-        }
-        setUsersLoaded(true);
-      }
+      setUsersLoaded(true);
     });
+
+    const handleLocalChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.collection === 'users') {
+        setUsers(getLocalCollection<User>('users'));
+      }
+    };
+
+    window.addEventListener('local-db-change', handleLocalChange);
 
     return () => {
       unsubscribe();
-      clearTimeout(loadingTimeout);
+      window.removeEventListener('local-db-change', handleLocalChange);
     };
   }, []);
 
-  // Persist auth state in localStorage (just the boolean, not user data)
+  // Persiste estado de autenticação no localStorage
   useEffect(() => {
     localStorage.setItem('isAuthenticated', String(isAuthenticated));
   }, [isAuthenticated]);
@@ -92,31 +88,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     console.log(`[Auth] Tentativa de login: ${cleanEmail}`);
 
-    // LOGIC 1: Hardcoded Emergency Bypass (Works even if Firestore is offline or empty)
+    // LOGIC 1: Hardcoded Emergency Bypass (Funciona mesmo se banco estiver vazio ou offline)
     if (cleanEmail === 'admin@biblioteca.com' && cleanPass === 'admin123') {
-      console.log('[Auth] Emergency Bypass ativado: Login concedido via credenciais padrão.');
+      console.log('[Auth] Emergency Bypass ativado: Login concedido.');
       setIsAuthenticated(true);
       return true;
     }
 
-    if (!usersLoaded) {
-      console.warn('[Auth] Database não carregado. Fallback para Hardcoded falhou.');
-      return false;
-    }
-
-    // LOGIC 2: Standard Firestore Login
-    const user = users.find(u =>
-      u.email.trim().toLowerCase() === cleanEmail &&
-      u.password.trim() === cleanPass
+    // LOGIC 2: Usuários cadastrados (local + nuvem)
+    const user = users.find(
+      (u) =>
+        u.email.trim().toLowerCase() === cleanEmail &&
+        u.password.trim() === cleanPass
     );
 
     if (user) {
-      console.log(`[Auth] Login bem-sucedido via Firestore: ${cleanEmail}`);
+      console.log('[Auth] Usuário autenticado com sucesso.');
       setIsAuthenticated(true);
       return true;
     }
 
-    console.warn(`[Auth] Credenciais inválidas para: ${cleanEmail}. Usuários carregados: ${users.length}`);
+    console.warn('[Auth] Falha no login: Credenciais inválidas.');
     return false;
   };
 
@@ -125,22 +117,47 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const addUser = async (userData: Omit<User, 'id'>) => {
-    await addDocument('users', userData);
+    const newId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const newUser: User = { id: newId, ...userData };
+
+    // Salva localmente imediatamente
+    upsertLocalItem('users', newUser);
+
+    // Enfileira para sync na nuvem
+    enqueueSyncOperation({
+      collection: 'users',
+      docId: newId,
+      action: 'add',
+      data: newUser,
+    });
+
+    processSyncQueue().catch(() => {});
   };
 
   const deleteUser = async (userId: string) => {
     if (users.length <= 1) {
-      console.error("Não é possível excluir o último usuário.");
+      console.error('Não é possível excluir o último usuário.');
       return;
     }
-    await deleteDocument('users', userId);
+
+    // Remove localmente imediatamente
+    removeLocalItem('users', userId);
+
+    // Enfileira para exclusão na nuvem
+    enqueueSyncOperation({
+      collection: 'users',
+      docId: userId,
+      action: 'delete',
+    });
+
+    processSyncQueue().catch(() => {});
   };
 
-  // --- AUTO LOGOFF LOGIC (40 MINUTES INACTIVITY) ---
+  // --- AUTO LOGOFF (40 MINUTOS DE INATIVIDADE) ---
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const INACTIVITY_LIMIT = 40 * 60 * 1000; // 40 minutos
+    const INACTIVITY_LIMIT = 40 * 60 * 1000;
     let timeoutId: NodeJS.Timeout;
 
     const resetTimer = () => {
@@ -151,21 +168,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }, INACTIVITY_LIMIT);
     };
 
-    // Eventos que resetam o cronômetro
     const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
-
-    // Inicia o timer e adiciona listeners
     resetTimer();
-    events.forEach(event => document.addEventListener(event, resetTimer));
+    events.forEach((event) => document.addEventListener(event, resetTimer));
 
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
-      events.forEach(event => document.removeEventListener(event, resetTimer));
+      events.forEach((event) => document.removeEventListener(event, resetTimer));
     };
   }, [isAuthenticated]);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, users, usersLoaded, login, logout, addUser, deleteUser }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        users,
+        usersLoaded,
+        login,
+        logout,
+        addUser,
+        deleteUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

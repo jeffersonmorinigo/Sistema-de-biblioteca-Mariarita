@@ -1,30 +1,47 @@
 import { format } from 'date-fns';
 import { getAll, getSettings, updateSettings, addDocument, deleteDocument, setDocument } from './firestoreService';
+import { getLocalCollection, getLocalSettings, saveLocalCollection, saveLocalSettings } from './localDb';
 import { Book, Student, Loan, User } from './types';
 
 /**
- * Coleta todos os dados do Firestore para backup.
+ * Coleta todos os dados para backup (com fallback no banco local caso offline).
  */
 const getAllData = async () => {
-  const [books, students, loans, users, settings] = await Promise.all([
-    getAll('books'),
-    getAll('students'),
-    getAll('loans'),
-    getAll('users'),
-    getSettings(),
-  ]);
+  try {
+    const [books, students, loans, users, settings] = await Promise.all([
+      getAll<Book>('books').catch(() => getLocalCollection<Book>('books')),
+      getAll<Student>('students').catch(() => getLocalCollection<Student>('students')),
+      getAll<Loan>('loans').catch(() => getLocalCollection<Loan>('loans')),
+      getAll<User>('users').catch(() => getLocalCollection<User>('users')),
+      getSettings().catch(() => getLocalSettings()),
+    ]);
 
-  return {
-    books,
-    students,
-    loans,
-    users,
-    schoolName: settings.schoolName,
-    book_categories: settings.book_categories,
-    student_classes: settings.student_classes,
-    book_shelves: settings.book_shelves,
-    book_types: settings.book_types,
-  };
+    return {
+      books: books.length > 0 ? books : getLocalCollection<Book>('books'),
+      students: students.length > 0 ? students : getLocalCollection<Student>('students'),
+      loans: loans.length > 0 ? loans : getLocalCollection<Loan>('loans'),
+      users: users.length > 0 ? users : getLocalCollection<User>('users'),
+      schoolName: settings.schoolName || getLocalSettings().schoolName,
+      book_categories: settings.book_categories || getLocalSettings().book_categories,
+      student_classes: settings.student_classes || getLocalSettings().student_classes,
+      book_shelves: settings.book_shelves || getLocalSettings().book_shelves,
+      book_types: settings.book_types || getLocalSettings().book_types,
+    };
+  } catch (err) {
+    console.warn('[Backup] Falha no Firestore, usando banco local:', err);
+    const settings = getLocalSettings();
+    return {
+      books: getLocalCollection<Book>('books'),
+      students: getLocalCollection<Student>('students'),
+      loans: getLocalCollection<Loan>('loans'),
+      users: getLocalCollection<User>('users'),
+      schoolName: settings.schoolName,
+      book_categories: settings.book_categories,
+      student_classes: settings.student_classes,
+      book_shelves: settings.book_shelves,
+      book_types: settings.book_types,
+    };
+  }
 };
 
 const escapeSql = (str: any) => {
@@ -139,7 +156,8 @@ export const restoreFromBackup = async (backupData: any) => {
     settings.book_shelves = backupData.book_shelves || backupData.shelves || backupData.estantesLivros || backupData.bookShelves || [];
     settings.book_types = backupData.book_types || backupData.bookTypes || backupData.tiposLivros || [];
 
-    await updateSettings(settings);
+    await updateSettings(settings).catch(() => {});
+    saveLocalSettings(settings);
     console.log('[Restore] Configurações OK.');
 
     // 2. Mapeamento de Coleções Principais
@@ -155,7 +173,10 @@ export const restoreFromBackup = async (backupData: any) => {
 
       console.log(`[Restore] Coleção "${colName}": ${items.length} itens encontrados.`);
 
-      // Limpar coleção atual
+      // Salva imediatamente no banco local
+      saveLocalCollection(colName, items);
+
+      // Limpar coleção atual na nuvem
       const currentData = await getAll(colName);
       if (currentData.length > 0) {
         console.log(`[Restore] Limpando ${currentData.length} itens de "${colName}"...`);

@@ -1,7 +1,8 @@
 import { NavLink } from 'react-router-dom';
-import { Book, Users, ArrowLeftRight, DatabaseBackup, UserCog, Settings, Library } from 'lucide-react';
+import { Book, Users, ArrowLeftRight, DatabaseBackup, UserCog, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSettings } from '@/hooks/useSettings';
+import { SyncStatusBadge } from '@/components/SyncStatusBadge';
 import logo from '@/assets/logo.png';
 
 const navItems = [
@@ -56,6 +57,11 @@ const Sidebar = () => {
           ))}
         </ul>
       </nav>
+
+      {/* Indicador de Status do Banco Local / Sincronização Firebase */}
+      <div className="mt-auto pt-4 border-t">
+        <SyncStatusBadge />
+      </div>
     </aside>
   );
 };
