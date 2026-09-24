@@ -112,8 +112,8 @@ export interface AppSettings {
 }
 
 const defaultSettings: AppSettings = {
-    schoolName: '',
-    book_categories: ['GERAL'],
+    schoolName: 'Escola Maria Rita',
+    book_categories: ['LITERATURA', 'DIDÁTICO', 'INFANTIL', 'PESQUISA', 'GERAL'],
     student_classes: [
         '1º ANO A', '1º ANO B', '1º ANO C',
         '2º ANO A', '2º ANO B', '2º ANO C',
@@ -125,8 +125,8 @@ const defaultSettings: AppSettings = {
         '8º ANO A', '8º ANO B', '8º ANO C',
         '9º ANO A', '9º ANO B', '9º ANO C',
     ],
-    book_shelves: ['N/A'],
-    book_types: ['PESQUISA', 'DIDÁTICO', 'LITERATURA'],
+    book_shelves: ['PRATELEIRA 1', 'PRATELEIRA 2', 'PRATELEIRA 3', 'GERAL', 'N/A'],
+    book_types: ['LIVRO', 'REVISTA', 'GIBI', 'DICIONÁRIO', 'ENCICLOPÉDIA', 'DIDÁTICO', 'PESQUISA', 'LITERATURA'],
     barcodeScanner: {
         enabled: true,
         targetField: 'code',

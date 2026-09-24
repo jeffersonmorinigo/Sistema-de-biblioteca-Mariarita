@@ -47,8 +47,7 @@ service cloud.firestore {
     }
     
     match /settings/{settingsId} {
-      allow read: if true;
-      allow write: if request.resource.data.schoolName is string;
+      allow read, write: if true;
     }
     
     match /{document=**} {

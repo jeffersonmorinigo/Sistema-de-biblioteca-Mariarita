@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { getAll, getSettings, updateSettings, addDocument, deleteDocument, setDocument } from './firestoreService';
-import { getLocalCollection, getLocalSettings, saveLocalCollection, saveLocalSettings } from './localDb';
+import { getLocalCollection, getLocalSettings, saveLocalCollection, saveLocalSettings, defaultSettings } from './localDb';
 import { Book, Student, Loan, User } from './types';
 
 /**
@@ -147,14 +147,30 @@ export const restoreFromBackup = async (backupData: any) => {
     console.log('[Restore] Iniciando...', Object.keys(backupData));
 
     // 1. Mapeamento de Configurações (Garante compatibilidade total)
+    const currentLocal = getLocalSettings();
     const settings: any = {};
-    settings.schoolName = backupData.schoolName || backupData.school_name || backupData.nomeEscola || '';
+    settings.schoolName = backupData.schoolName || backupData.school_name || backupData.nomeEscola || currentLocal.schoolName || defaultSettings.schoolName;
 
-    // Mapeia todas as possíveis variações de nomes de chaves de configurações
-    settings.book_categories = backupData.book_categories || backupData.categories || backupData.categoriasLivros || backupData.bookCategories || [];
-    settings.student_classes = backupData.student_classes || backupData.classes || backupData.turmasAlunos || backupData.studentClasses || [];
-    settings.book_shelves = backupData.book_shelves || backupData.shelves || backupData.estantesLivros || backupData.bookShelves || [];
-    settings.book_types = backupData.book_types || backupData.bookTypes || backupData.tiposLivros || [];
+    // Mapeia todas as possíveis variações de nomes de chaves de configurações, preservando listas
+    const restoredCategories = backupData.book_categories || backupData.categories || backupData.categoriasLivros || backupData.bookCategories;
+    settings.book_categories = Array.isArray(restoredCategories) && restoredCategories.length > 0 
+      ? restoredCategories 
+      : (currentLocal.book_categories.length > 0 ? currentLocal.book_categories : defaultSettings.book_categories);
+
+    const restoredClasses = backupData.student_classes || backupData.classes || backupData.turmasAlunos || backupData.studentClasses;
+    settings.student_classes = Array.isArray(restoredClasses) && restoredClasses.length > 0 
+      ? restoredClasses 
+      : (currentLocal.student_classes.length > 0 ? currentLocal.student_classes : defaultSettings.student_classes);
+
+    const restoredShelves = backupData.book_shelves || backupData.shelves || backupData.estantesLivros || backupData.bookShelves;
+    settings.book_shelves = Array.isArray(restoredShelves) && restoredShelves.length > 0 
+      ? restoredShelves 
+      : (currentLocal.book_shelves.length > 0 ? currentLocal.book_shelves : defaultSettings.book_shelves);
+
+    const restoredTypes = backupData.book_types || backupData.bookTypes || backupData.tiposLivros;
+    settings.book_types = Array.isArray(restoredTypes) && restoredTypes.length > 0 
+      ? restoredTypes 
+      : (currentLocal.book_types.length > 0 ? currentLocal.book_types : defaultSettings.book_types);
 
     await updateSettings(settings).catch(() => {});
     saveLocalSettings(settings);

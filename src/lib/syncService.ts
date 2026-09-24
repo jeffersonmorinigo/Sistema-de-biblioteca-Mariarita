@@ -99,20 +99,32 @@ export async function processSyncQueue(): Promise<void> {
 
   try {
     for (const item of queue) {
-      if (item.action === 'add' || item.action === 'update') {
-        const docRef = doc(db, item.collection, item.docId);
-        // Remove id do corpo do dado para não duplicar no Firestore
-        const { id, ...saveData } = item.data || {};
-        await setDoc(docRef, saveData, { merge: true });
-        dequeueSyncOperation(item.id);
-      } else if (item.action === 'delete') {
-        const docRef = doc(db, item.collection, item.docId);
-        await deleteDoc(docRef);
-        dequeueSyncOperation(item.id);
-      } else if (item.action === 'setSettings') {
-        const docRef = doc(db, 'settings', SETTINGS_DOC_ID);
-        await setDoc(docRef, item.data || {}, { merge: true });
-        dequeueSyncOperation(item.id);
+      try {
+        if (item.action === 'add' || item.action === 'update') {
+          const docRef = doc(db, item.collection, item.docId);
+          // Remove id do corpo do dado para não duplicar no Firestore
+          const { id, ...saveData } = item.data || {};
+          await setDoc(docRef, saveData, { merge: true });
+          dequeueSyncOperation(item.id);
+        } else if (item.action === 'delete') {
+          const docRef = doc(db, item.collection, item.docId);
+          await deleteDoc(docRef);
+          dequeueSyncOperation(item.id);
+        } else if (item.action === 'setSettings') {
+          const docRef = doc(db, 'settings', SETTINGS_DOC_ID);
+          await setDoc(docRef, item.data || {}, { merge: true });
+          dequeueSyncOperation(item.id);
+        }
+      } catch (itemErr: any) {
+        console.warn(`[SyncService] Erro ao sincronizar item individual (${item.action} em ${item.collection}):`, itemErr);
+        // Se for erro definitivo de permissão, remove para não travar a fila infinitamente
+        if (itemErr?.code === 'permission-denied' || itemErr?.message?.includes('permission')) {
+          console.error('[SyncService] Permissão negada, descartando item para não travar a fila:', item);
+          dequeueSyncOperation(item.id);
+        } else {
+          // Erro de conexão ou temporário: interrompe para tentar novamente quando houver rede
+          throw itemErr;
+        }
       }
     }
 
@@ -227,10 +239,37 @@ export function startSettingsSync(
   return onSnapshot(
     docRef,
     (docSnap) => {
+      // Se há alterações de settings pendentes de envio na fila, NÃO sobrescreve o local com dados desatualizados
+      const pendingSettingsOps = getSyncQueue().filter((q) => q.collection === 'settings');
+      if (pendingSettingsOps.length > 0) {
+        console.log('[SyncService] Settings pendentes na fila de sync; mantendo dados locais atuais.');
+        return;
+      }
+
       if (docSnap.exists()) {
         const cloudSettings = docSnap.data() as AppSettings;
-        // Mescla com local
-        const merged = { ...defaultSettings, ...cloudSettings };
+        const currentLocal = getLocalSettings();
+
+        // Mescla com segurança: a nuvem tem autoridade, mas preserva campos e listas válidas
+        const merged: AppSettings = {
+          schoolName: typeof cloudSettings.schoolName === 'string' && cloudSettings.schoolName.trim()
+            ? cloudSettings.schoolName
+            : (currentLocal.schoolName || defaultSettings.schoolName),
+          book_categories: Array.isArray(cloudSettings.book_categories) && cloudSettings.book_categories.length > 0
+            ? cloudSettings.book_categories
+            : (Array.isArray(currentLocal.book_categories) && currentLocal.book_categories.length > 0 ? currentLocal.book_categories : defaultSettings.book_categories),
+          student_classes: Array.isArray(cloudSettings.student_classes) && cloudSettings.student_classes.length > 0
+            ? cloudSettings.student_classes
+            : (Array.isArray(currentLocal.student_classes) && currentLocal.student_classes.length > 0 ? currentLocal.student_classes : defaultSettings.student_classes),
+          book_shelves: Array.isArray(cloudSettings.book_shelves) && cloudSettings.book_shelves.length > 0
+            ? cloudSettings.book_shelves
+            : (Array.isArray(currentLocal.book_shelves) && currentLocal.book_shelves.length > 0 ? currentLocal.book_shelves : defaultSettings.book_shelves),
+          book_types: Array.isArray(cloudSettings.book_types) && cloudSettings.book_types.length > 0
+            ? cloudSettings.book_types
+            : (Array.isArray(currentLocal.book_types) && currentLocal.book_types.length > 0 ? currentLocal.book_types : defaultSettings.book_types),
+          barcodeScanner: cloudSettings.barcodeScanner || currentLocal.barcodeScanner || defaultSettings.barcodeScanner,
+        };
+
         saveLocalSettings(merged, false);
         if (onSettingsUpdate) {
           onSettingsUpdate(merged);

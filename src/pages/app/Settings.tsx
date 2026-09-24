@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { showSuccess, showError } from '@/utils/toast';
-import { Trash2, Eraser, AlertTriangle } from 'lucide-react';
+import { Trash2, Eraser, AlertTriangle, RotateCcw } from 'lucide-react';
 import { Book, Student, Loan } from '@/lib/types';
 import { BarcodeScannerConfig } from '@/components/BarcodeScannerConfig';
 import {
@@ -53,6 +53,11 @@ const SettingsPage = () => {
     },
   });
 
+  const categories = settings.book_categories || [];
+  const shelves = settings.book_shelves || [];
+  const studentClasses = settings.student_classes || [];
+  const bookTypes = settings.book_types || [];
+
   const onSchoolNameSubmit = async (data: SettingsFormData) => {
     await updateSettings({ schoolName: data.schoolName });
     showSuccess('Nome da escola salvo com sucesso!');
@@ -64,12 +69,12 @@ const SettingsPage = () => {
       showError('O nome da categoria não pode estar vazio.');
       return;
     }
-    if (settings.book_categories.includes(formattedCategory)) {
+    if (categories.includes(formattedCategory)) {
       showError('Essa categoria já existe.');
       return;
     }
     await updateSettings({
-      book_categories: [...settings.book_categories, formattedCategory].sort()
+      book_categories: [...categories, formattedCategory].sort()
     });
     setNewCategory('');
     showSuccess(`Categoria "${formattedCategory}" adicionada!`);
@@ -81,9 +86,16 @@ const SettingsPage = () => {
       return;
     }
     await updateSettings({
-      book_categories: settings.book_categories.filter(c => c !== categoryToDelete)
+      book_categories: categories.filter(c => c !== categoryToDelete)
     });
     showSuccess(`Categoria "${categoryToDelete}" excluída!`);
+  };
+
+  const handleRestoreDefaultCategories = async () => {
+    const defaultList = ['LITERATURA', 'DIDÁTICO', 'INFANTIL', 'PESQUISA', 'GERAL'];
+    const merged = Array.from(new Set([...categories, ...defaultList])).sort();
+    await updateSettings({ book_categories: merged });
+    showSuccess('Categorias padrão restauradas com sucesso!');
   };
 
   const handleAddShelf = async () => {
@@ -92,12 +104,12 @@ const SettingsPage = () => {
       showError('O nome da prateleira não pode estar vazio.');
       return;
     }
-    if (settings.book_shelves.includes(formattedShelf)) {
+    if (shelves.includes(formattedShelf)) {
       showError('Essa prateleira já existe.');
       return;
     }
     await updateSettings({
-      book_shelves: [...settings.book_shelves, formattedShelf].sort()
+      book_shelves: [...shelves, formattedShelf].sort()
     });
     setNewShelf('');
     showSuccess(`Prateleira "${formattedShelf}" adicionada!`);
@@ -109,9 +121,16 @@ const SettingsPage = () => {
       return;
     }
     await updateSettings({
-      book_shelves: settings.book_shelves.filter(s => s !== shelfToDelete)
+      book_shelves: shelves.filter(s => s !== shelfToDelete)
     });
     showSuccess(`Prateleira "${shelfToDelete}" excluída!`);
+  };
+
+  const handleRestoreDefaultShelves = async () => {
+    const defaultList = ['PRATELEIRA 1', 'PRATELEIRA 2', 'PRATELEIRA 3', 'GERAL', 'N/A'];
+    const merged = Array.from(new Set([...shelves, ...defaultList])).sort();
+    await updateSettings({ book_shelves: merged });
+    showSuccess('Prateleiras padrão restauradas com sucesso!');
   };
 
   const handleAddClass = async () => {
@@ -120,12 +139,12 @@ const SettingsPage = () => {
       showError('O nome da turma não pode estar vazio.');
       return;
     }
-    if (settings.student_classes.includes(formattedClass)) {
+    if (studentClasses.includes(formattedClass)) {
       showError('Essa turma já existe.');
       return;
     }
     await updateSettings({
-      student_classes: [...settings.student_classes, formattedClass].sort()
+      student_classes: [...studentClasses, formattedClass].sort()
     });
     setNewClass('');
     showSuccess(`Turma "${formattedClass}" adicionada!`);
@@ -137,9 +156,26 @@ const SettingsPage = () => {
       return;
     }
     await updateSettings({
-      student_classes: settings.student_classes.filter(c => c !== classToDelete)
+      student_classes: studentClasses.filter(c => c !== classToDelete)
     });
     showSuccess(`Turma "${classToDelete}" excluída!`);
+  };
+
+  const handleRestoreDefaultClasses = async () => {
+    const defaultList = [
+      '1º ANO A', '1º ANO B', '1º ANO C',
+      '2º ANO A', '2º ANO B', '2º ANO C',
+      '3º ANO A', '3º ANO B', '3º ANO C',
+      '4º ANO A', '4º ANO B', '4º ANO C',
+      '5º ANO A', '5º ANO B', '5º ANO C',
+      '6º ANO A', '6º ANO B', '6º ANO C',
+      '7º ANO A', '7º ANO B', '7º ANO C',
+      '8º ANO A', '8º ANO B', '8º ANO C',
+      '9º ANO A', '9º ANO B', '9º ANO C',
+    ];
+    const merged = Array.from(new Set([...studentClasses, ...defaultList])).sort();
+    await updateSettings({ student_classes: merged });
+    showSuccess('Turmas padrão restauradas com sucesso!');
   };
 
   const handleAddBookType = async () => {
@@ -148,12 +184,12 @@ const SettingsPage = () => {
       showError('O nome do tipo de livro não pode estar vazio.');
       return;
     }
-    if (settings.book_types.includes(formattedType)) {
+    if (bookTypes.includes(formattedType)) {
       showError('Esse tipo de livro já existe.');
       return;
     }
     await updateSettings({
-      book_types: [...settings.book_types, formattedType].sort()
+      book_types: [...bookTypes, formattedType].sort()
     });
     setNewBookType('');
     showSuccess(`Tipo de livro "${formattedType}" adicionado!`);
@@ -165,9 +201,16 @@ const SettingsPage = () => {
       return;
     }
     await updateSettings({
-      book_types: settings.book_types.filter(t => t !== typeToDelete)
+      book_types: bookTypes.filter(t => t !== typeToDelete)
     });
     showSuccess(`Tipo de livro "${typeToDelete}" excluído!`);
+  };
+
+  const handleRestoreDefaultBookTypes = async () => {
+    const defaultList = ['LIVRO', 'REVISTA', 'GIBI', 'DICIONÁRIO', 'ENCICLOPÉDIA', 'DIDÁTICO', 'PESQUISA', 'LITERATURA'];
+    const merged = Array.from(new Set([...bookTypes, ...defaultList])).sort();
+    await updateSettings({ book_types: merged });
+    showSuccess('Tipos de livro padrão restaurados com sucesso!');
   };
 
   const handleClearLoanHistory = async () => {
@@ -229,11 +272,23 @@ const SettingsPage = () => {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Categorias de Livros</CardTitle>
-            <CardDescription>
-              Adicione ou remova categorias para organizar seus livros.
-            </CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle>Categorias de Livros</CardTitle>
+              <CardDescription>
+                Adicione ou remova categorias para organizar seus livros.
+              </CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+              onClick={handleRestoreDefaultCategories}
+              title="Restaurar categorias padrão (Literatura, Didático, Infantil, etc.)"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Padrões</span>
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="flex gap-2 mb-4">
@@ -241,29 +296,56 @@ const SettingsPage = () => {
                 value={newCategory}
                 onChange={(e) => setNewCategory(e.target.value.toUpperCase())}
                 placeholder="Ex: FICÇÃO CIENTÍFICA"
-                onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddCategory();
+                  }
+                }}
               />
               <Button onClick={handleAddCategory}>Adicionar</Button>
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-              {settings.book_categories.map(category => (
-                <div key={category} className="flex items-center justify-between rounded-md bg-muted p-2">
-                  <span className="text-sm font-medium">{category}</span>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteCategory(category)}>
-                    <Trash2 className="h-4 w-4 text-red-500" />
+              {categories.length === 0 ? (
+                <div className="text-center py-4 space-y-2">
+                  <p className="text-xs text-muted-foreground">Nenhuma categoria cadastrada.</p>
+                  <Button variant="outline" size="sm" onClick={handleRestoreDefaultCategories} className="text-xs">
+                    <RotateCcw className="h-3 w-3 mr-1" />
+                    Inserir Categorias Padrão
                   </Button>
                 </div>
-              ))}
+              ) : (
+                categories.map(category => (
+                  <div key={category} className="flex items-center justify-between rounded-md bg-muted p-2">
+                    <span className="text-sm font-medium">{category}</span>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteCategory(category)}>
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Gerenciamento de Prateleiras</CardTitle>
-            <CardDescription>
-              Adicione ou remova prateleiras para organizar a localização dos livros.
-            </CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle>Gerenciamento de Prateleiras</CardTitle>
+              <CardDescription>
+                Adicione ou remova prateleiras para organizar a localização dos livros.
+              </CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+              onClick={handleRestoreDefaultShelves}
+              title="Restaurar prateleiras padrão"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Padrões</span>
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="flex gap-2 mb-4">
@@ -271,29 +353,56 @@ const SettingsPage = () => {
                 value={newShelf}
                 onChange={(e) => setNewShelf(e.target.value.toUpperCase())}
                 placeholder="Ex: A1, B2"
-                onKeyDown={(e) => e.key === 'Enter' && handleAddShelf()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddShelf();
+                  }
+                }}
               />
               <Button onClick={handleAddShelf}>Adicionar</Button>
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-              {settings.book_shelves.map(shelf => (
-                <div key={shelf} className="flex items-center justify-between rounded-md bg-muted p-2">
-                  <span className="text-sm font-medium">{shelf}</span>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteShelf(shelf)}>
-                    <Trash2 className="h-4 w-4 text-red-500" />
+              {shelves.length === 0 ? (
+                <div className="text-center py-4 space-y-2">
+                  <p className="text-xs text-muted-foreground">Nenhuma prateleira cadastrada.</p>
+                  <Button variant="outline" size="sm" onClick={handleRestoreDefaultShelves} className="text-xs">
+                    <RotateCcw className="h-3 w-3 mr-1" />
+                    Inserir Prateleiras Padrão
                   </Button>
                 </div>
-              ))}
+              ) : (
+                shelves.map(shelf => (
+                  <div key={shelf} className="flex items-center justify-between rounded-md bg-muted p-2">
+                    <span className="text-sm font-medium">{shelf}</span>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteShelf(shelf)}>
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Tipos de Livros</CardTitle>
-            <CardDescription>
-              Adicione ou remova tipos de livros (Ex: Pesquisa, Didático).
-            </CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle>Tipos de Livros</CardTitle>
+              <CardDescription>
+                Adicione ou remova tipos de livros (Ex: Pesquisa, Didático).
+              </CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+              onClick={handleRestoreDefaultBookTypes}
+              title="Restaurar tipos de livros padrão"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Padrões</span>
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="flex gap-2 mb-4">
@@ -301,29 +410,56 @@ const SettingsPage = () => {
                 value={newBookType}
                 onChange={(e) => setNewBookType(e.target.value.toUpperCase())}
                 placeholder="Ex: PESQUISA"
-                onKeyDown={(e) => e.key === 'Enter' && handleAddBookType()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddBookType();
+                  }
+                }}
               />
               <Button onClick={handleAddBookType}>Adicionar</Button>
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-              {settings.book_types.map(type => (
-                <div key={type} className="flex items-center justify-between rounded-md bg-muted p-2">
-                  <span className="text-sm font-medium">{type}</span>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteBookType(type)}>
-                    <Trash2 className="h-4 w-4 text-red-500" />
+              {bookTypes.length === 0 ? (
+                <div className="text-center py-4 space-y-2">
+                  <p className="text-xs text-muted-foreground">Nenhum tipo de livro cadastrado.</p>
+                  <Button variant="outline" size="sm" onClick={handleRestoreDefaultBookTypes} className="text-xs">
+                    <RotateCcw className="h-3 w-3 mr-1" />
+                    Inserir Tipos Padrão
                   </Button>
                 </div>
-              ))}
+              ) : (
+                bookTypes.map(type => (
+                  <div key={type} className="flex items-center justify-between rounded-md bg-muted p-2">
+                    <span className="text-sm font-medium">{type}</span>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteBookType(type)}>
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Gerenciamento de Turmas</CardTitle>
-            <CardDescription>
-              Adicione ou remova turmas para organizar os alunos.
-            </CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle>Gerenciamento de Turmas</CardTitle>
+              <CardDescription>
+                Adicione ou remova turmas para organizar os alunos.
+              </CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+              onClick={handleRestoreDefaultClasses}
+              title="Restaurar turmas padrão (1º ao 9º Ano)"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Padrões</span>
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="flex gap-2 mb-4">
@@ -331,19 +467,34 @@ const SettingsPage = () => {
                 value={newClass}
                 onChange={(e) => setNewClass(e.target.value.toUpperCase())}
                 placeholder="Ex: 1º ANO A"
-                onKeyDown={(e) => e.key === 'Enter' && handleAddClass()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddClass();
+                  }
+                }}
               />
               <Button onClick={handleAddClass}>Adicionar</Button>
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-              {settings.student_classes.map(className => (
-                <div key={className} className="flex items-center justify-between rounded-md bg-muted p-2">
-                  <span className="text-sm font-medium">{className}</span>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteClass(className)}>
-                    <Trash2 className="h-4 w-4 text-red-500" />
+              {studentClasses.length === 0 ? (
+                <div className="text-center py-4 space-y-2">
+                  <p className="text-xs text-muted-foreground">Nenhuma turma cadastrada.</p>
+                  <Button variant="outline" size="sm" onClick={handleRestoreDefaultClasses} className="text-xs">
+                    <RotateCcw className="h-3 w-3 mr-1" />
+                    Inserir Turmas Padrão (1º ao 9º)
                   </Button>
                 </div>
-              ))}
+              ) : (
+                studentClasses.map(className => (
+                  <div key={className} className="flex items-center justify-between rounded-md bg-muted p-2">
+                    <span className="text-sm font-medium">{className}</span>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteClass(className)}>
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
