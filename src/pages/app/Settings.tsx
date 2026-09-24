@@ -35,7 +35,7 @@ const SettingsPage = () => {
   const { settings, update: updateSettings } = useSettings();
   const { data: books } = useFirestore<Book>('books');
   const { data: students } = useFirestore<Student>('students');
-  const { data: loans, setAll: setLoans } = useFirestore<Loan>('loans');
+  const { data: loans, remove: removeLoan } = useFirestore<Loan>('loans');
 
   const [newCategory, setNewCategory] = useState('');
   const [newShelf, setNewShelf] = useState('');
@@ -69,33 +69,49 @@ const SettingsPage = () => {
       showError('O nome da categoria não pode estar vazio.');
       return;
     }
-    if (categories.includes(formattedCategory)) {
+    if (categories.some(c => c.trim().toUpperCase() === formattedCategory)) {
       showError('Essa categoria já existe.');
       return;
     }
-    await updateSettings({
-      book_categories: [...categories, formattedCategory].sort()
-    });
-    setNewCategory('');
-    showSuccess(`Categoria "${formattedCategory}" adicionada!`);
+    try {
+      const updated = Array.from(new Set([...categories, formattedCategory])).sort();
+      await updateSettings({ book_categories: updated });
+      setNewCategory('');
+      showSuccess(`Categoria "${formattedCategory}" adicionada com sucesso!`);
+    } catch (err: any) {
+      showError('Erro ao adicionar categoria: ' + (err?.message || 'Tente novamente'));
+    }
   };
 
   const handleDeleteCategory = async (categoryToDelete: string) => {
-    if (books.some(book => book.category === categoryToDelete)) {
-      showError('Não é possível excluir uma categoria que está em uso por um livro.');
-      return;
+    const trimmedTarget = categoryToDelete.trim().toUpperCase();
+    const booksUsing = books.filter(
+      book => (book.category || '').trim().toUpperCase() === trimmedTarget
+    );
+    if (booksUsing.length > 0) {
+      const confirmDelete = window.confirm(
+        `Atenção: Existem ${booksUsing.length} livro(s) cadastrado(s) com a categoria "${categoryToDelete}" (ex: "${booksUsing[0].title}").\n\nDeseja remover "${categoryToDelete}" da lista de opções de cadastro mesmo assim?`
+      );
+      if (!confirmDelete) return;
     }
-    await updateSettings({
-      book_categories: categories.filter(c => c !== categoryToDelete)
-    });
-    showSuccess(`Categoria "${categoryToDelete}" excluída!`);
+    try {
+      const updated = categories.filter(c => c.trim().toUpperCase() !== trimmedTarget);
+      await updateSettings({ book_categories: updated });
+      showSuccess(`Categoria "${categoryToDelete}" excluída com sucesso!`);
+    } catch (err: any) {
+      showError('Erro ao excluir categoria: ' + (err?.message || 'Tente novamente'));
+    }
   };
 
   const handleRestoreDefaultCategories = async () => {
     const defaultList = ['LITERATURA', 'DIDÁTICO', 'INFANTIL', 'PESQUISA', 'GERAL'];
     const merged = Array.from(new Set([...categories, ...defaultList])).sort();
-    await updateSettings({ book_categories: merged });
-    showSuccess('Categorias padrão restauradas com sucesso!');
+    try {
+      await updateSettings({ book_categories: merged });
+      showSuccess('Categorias padrão restauradas com sucesso!');
+    } catch (err: any) {
+      showError('Erro ao restaurar categorias: ' + (err?.message || 'Tente novamente'));
+    }
   };
 
   const handleAddShelf = async () => {
@@ -104,33 +120,49 @@ const SettingsPage = () => {
       showError('O nome da prateleira não pode estar vazio.');
       return;
     }
-    if (shelves.includes(formattedShelf)) {
+    if (shelves.some(s => s.trim().toUpperCase() === formattedShelf)) {
       showError('Essa prateleira já existe.');
       return;
     }
-    await updateSettings({
-      book_shelves: [...shelves, formattedShelf].sort()
-    });
-    setNewShelf('');
-    showSuccess(`Prateleira "${formattedShelf}" adicionada!`);
+    try {
+      const updated = Array.from(new Set([...shelves, formattedShelf])).sort();
+      await updateSettings({ book_shelves: updated });
+      setNewShelf('');
+      showSuccess(`Prateleira "${formattedShelf}" adicionada com sucesso!`);
+    } catch (err: any) {
+      showError('Erro ao adicionar prateleira: ' + (err?.message || 'Tente novamente'));
+    }
   };
 
   const handleDeleteShelf = async (shelfToDelete: string) => {
-    if (books.some(book => book.shelf === shelfToDelete)) {
-      showError('Não é possível excluir uma prateleira que está em uso por um livro.');
-      return;
+    const trimmedTarget = shelfToDelete.trim().toUpperCase();
+    const booksUsing = books.filter(
+      book => (book.shelf || '').trim().toUpperCase() === trimmedTarget
+    );
+    if (booksUsing.length > 0) {
+      const confirmDelete = window.confirm(
+        `Atenção: Existem ${booksUsing.length} livro(s) localizado(s) na prateleira "${shelfToDelete}" (ex: "${booksUsing[0].title}").\n\nDeseja remover "${shelfToDelete}" da lista de prateleiras mesmo assim?`
+      );
+      if (!confirmDelete) return;
     }
-    await updateSettings({
-      book_shelves: shelves.filter(s => s !== shelfToDelete)
-    });
-    showSuccess(`Prateleira "${shelfToDelete}" excluída!`);
+    try {
+      const updated = shelves.filter(s => s.trim().toUpperCase() !== trimmedTarget);
+      await updateSettings({ book_shelves: updated });
+      showSuccess(`Prateleira "${shelfToDelete}" excluída com sucesso!`);
+    } catch (err: any) {
+      showError('Erro ao excluir prateleira: ' + (err?.message || 'Tente novamente'));
+    }
   };
 
   const handleRestoreDefaultShelves = async () => {
     const defaultList = ['PRATELEIRA 1', 'PRATELEIRA 2', 'PRATELEIRA 3', 'GERAL', 'N/A'];
     const merged = Array.from(new Set([...shelves, ...defaultList])).sort();
-    await updateSettings({ book_shelves: merged });
-    showSuccess('Prateleiras padrão restauradas com sucesso!');
+    try {
+      await updateSettings({ book_shelves: merged });
+      showSuccess('Prateleiras padrão restauradas com sucesso!');
+    } catch (err: any) {
+      showError('Erro ao restaurar prateleiras: ' + (err?.message || 'Tente novamente'));
+    }
   };
 
   const handleAddClass = async () => {
@@ -139,26 +171,38 @@ const SettingsPage = () => {
       showError('O nome da turma não pode estar vazio.');
       return;
     }
-    if (studentClasses.includes(formattedClass)) {
+    if (studentClasses.some(c => c.trim().toUpperCase() === formattedClass)) {
       showError('Essa turma já existe.');
       return;
     }
-    await updateSettings({
-      student_classes: [...studentClasses, formattedClass].sort()
-    });
-    setNewClass('');
-    showSuccess(`Turma "${formattedClass}" adicionada!`);
+    try {
+      const updated = Array.from(new Set([...studentClasses, formattedClass])).sort();
+      await updateSettings({ student_classes: updated });
+      setNewClass('');
+      showSuccess(`Turma "${formattedClass}" adicionada com sucesso!`);
+    } catch (err: any) {
+      showError('Erro ao adicionar turma: ' + (err?.message || 'Tente novamente'));
+    }
   };
 
   const handleDeleteClass = async (classToDelete: string) => {
-    if (students.some(student => student.class === classToDelete)) {
-      showError('Não é possível excluir uma turma que está em uso por um aluno.');
-      return;
+    const trimmedTarget = classToDelete.trim().toUpperCase();
+    const studentsUsing = students.filter(
+      student => (student.class || '').trim().toUpperCase() === trimmedTarget
+    );
+    if (studentsUsing.length > 0) {
+      const confirmDelete = window.confirm(
+        `Atenção: Existem ${studentsUsing.length} aluno(s) cadastrado(s) na turma "${classToDelete}" (ex: "${studentsUsing[0].name}").\n\nDeseja remover "${classToDelete}" da lista de turmas mesmo assim?`
+      );
+      if (!confirmDelete) return;
     }
-    await updateSettings({
-      student_classes: studentClasses.filter(c => c !== classToDelete)
-    });
-    showSuccess(`Turma "${classToDelete}" excluída!`);
+    try {
+      const updated = studentClasses.filter(c => c.trim().toUpperCase() !== trimmedTarget);
+      await updateSettings({ student_classes: updated });
+      showSuccess(`Turma "${classToDelete}" excluída com sucesso!`);
+    } catch (err: any) {
+      showError('Erro ao excluir turma: ' + (err?.message || 'Tente novamente'));
+    }
   };
 
   const handleRestoreDefaultClasses = async () => {
@@ -174,8 +218,12 @@ const SettingsPage = () => {
       '9º ANO A', '9º ANO B', '9º ANO C',
     ];
     const merged = Array.from(new Set([...studentClasses, ...defaultList])).sort();
-    await updateSettings({ student_classes: merged });
-    showSuccess('Turmas padrão restauradas com sucesso!');
+    try {
+      await updateSettings({ student_classes: merged });
+      showSuccess('Turmas padrão restauradas com sucesso!');
+    } catch (err: any) {
+      showError('Erro ao restaurar turmas: ' + (err?.message || 'Tente novamente'));
+    }
   };
 
   const handleAddBookType = async () => {
@@ -184,37 +232,52 @@ const SettingsPage = () => {
       showError('O nome do tipo de livro não pode estar vazio.');
       return;
     }
-    if (bookTypes.includes(formattedType)) {
+    if (bookTypes.some(t => t.trim().toUpperCase() === formattedType)) {
       showError('Esse tipo de livro já existe.');
       return;
     }
-    await updateSettings({
-      book_types: [...bookTypes, formattedType].sort()
-    });
-    setNewBookType('');
-    showSuccess(`Tipo de livro "${formattedType}" adicionado!`);
+    try {
+      const updated = Array.from(new Set([...bookTypes, formattedType])).sort();
+      await updateSettings({ book_types: updated });
+      setNewBookType('');
+      showSuccess(`Tipo de livro "${formattedType}" adicionado com sucesso!`);
+    } catch (err: any) {
+      showError('Erro ao adicionar tipo de livro: ' + (err?.message || 'Tente novamente'));
+    }
   };
 
   const handleDeleteBookType = async (typeToDelete: string) => {
-    if (books.some(book => book.bookType === typeToDelete)) {
-      showError('Não é possível excluir um tipo de livro que está em uso.');
-      return;
+    const trimmedTarget = typeToDelete.trim().toUpperCase();
+    const booksUsing = books.filter(
+      book => (book.bookType || '').trim().toUpperCase() === trimmedTarget
+    );
+    if (booksUsing.length > 0) {
+      const confirmDelete = window.confirm(
+        `Atenção: Existem ${booksUsing.length} livro(s) cadastrado(s) com o tipo "${typeToDelete}" (ex: "${booksUsing[0].title}").\n\nDeseja remover "${typeToDelete}" da lista de tipos mesmo assim?`
+      );
+      if (!confirmDelete) return;
     }
-    await updateSettings({
-      book_types: bookTypes.filter(t => t !== typeToDelete)
-    });
-    showSuccess(`Tipo de livro "${typeToDelete}" excluído!`);
+    try {
+      const updated = bookTypes.filter(t => t.trim().toUpperCase() !== trimmedTarget);
+      await updateSettings({ book_types: updated });
+      showSuccess(`Tipo de livro "${typeToDelete}" excluído com sucesso!`);
+    } catch (err: any) {
+      showError('Erro ao excluir tipo de livro: ' + (err?.message || 'Tente novamente'));
+    }
   };
 
   const handleRestoreDefaultBookTypes = async () => {
     const defaultList = ['LIVRO', 'REVISTA', 'GIBI', 'DICIONÁRIO', 'ENCICLOPÉDIA', 'DIDÁTICO', 'PESQUISA', 'LITERATURA'];
     const merged = Array.from(new Set([...bookTypes, ...defaultList])).sort();
-    await updateSettings({ book_types: merged });
-    showSuccess('Tipos de livro padrão restaurados com sucesso!');
+    try {
+      await updateSettings({ book_types: merged });
+      showSuccess('Tipos de livro padrão restaurados com sucesso!');
+    } catch (err: any) {
+      showError('Erro ao restaurar tipos de livro: ' + (err?.message || 'Tente novamente'));
+    }
   };
 
   const handleClearLoanHistory = async () => {
-    const activeLoans = loans.filter(loan => !loan.returnDate);
     const returnedLoans = loans.filter(loan => loan.returnDate);
 
     if (returnedLoans.length === 0) {
@@ -222,20 +285,16 @@ const SettingsPage = () => {
       return;
     }
 
-    // In a real app we'd batch this, but for now we follow the setAll logic
-    // which the useFirestore hook provides (though it currently just updates local state)
-    // To actually clear in Firestore, we need to delete each doc
-    for (const loan of returnedLoans) {
-      // we'd need a delete function, which useFirestore provides as 'remove'
-      // But we can't call 'remove' in a loop easily without refreshing? 
-      // Actually useFirestore's remove calls deleteDocument which is async.
+    try {
+      for (const loan of returnedLoans) {
+        if (loan.id) {
+          await removeLoan(loan.id);
+        }
+      }
+      showSuccess(`Histórico de ${returnedLoans.length} empréstimo(s) limpo com sucesso!`);
+    } catch (err: any) {
+      showError('Erro ao limpar histórico: ' + (err?.message || 'Tente novamente'));
     }
-
-    // For now, let's just use the 'remove' function from useFirestore if we have doc id
-    // Wait, useFirestore doesn't expose a 'remove' that accepts ID? It does.
-    // However, for bulk delete it's better to implement a specific service function.
-
-    showSuccess('Histórico de empréstimos limpo com sucesso!');
   };
 
   return (
@@ -280,6 +339,7 @@ const SettingsPage = () => {
               </CardDescription>
             </div>
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
@@ -303,13 +363,13 @@ const SettingsPage = () => {
                   }
                 }}
               />
-              <Button onClick={handleAddCategory}>Adicionar</Button>
+              <Button type="button" onClick={handleAddCategory}>Adicionar</Button>
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
               {categories.length === 0 ? (
                 <div className="text-center py-4 space-y-2">
                   <p className="text-xs text-muted-foreground">Nenhuma categoria cadastrada.</p>
-                  <Button variant="outline" size="sm" onClick={handleRestoreDefaultCategories} className="text-xs">
+                  <Button type="button" variant="outline" size="sm" onClick={handleRestoreDefaultCategories} className="text-xs">
                     <RotateCcw className="h-3 w-3 mr-1" />
                     Inserir Categorias Padrão
                   </Button>
@@ -318,7 +378,7 @@ const SettingsPage = () => {
                 categories.map(category => (
                   <div key={category} className="flex items-center justify-between rounded-md bg-muted p-2">
                     <span className="text-sm font-medium">{category}</span>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteCategory(category)}>
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteCategory(category)}>
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   </div>
@@ -337,6 +397,7 @@ const SettingsPage = () => {
               </CardDescription>
             </div>
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
@@ -360,13 +421,13 @@ const SettingsPage = () => {
                   }
                 }}
               />
-              <Button onClick={handleAddShelf}>Adicionar</Button>
+              <Button type="button" onClick={handleAddShelf}>Adicionar</Button>
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
               {shelves.length === 0 ? (
                 <div className="text-center py-4 space-y-2">
                   <p className="text-xs text-muted-foreground">Nenhuma prateleira cadastrada.</p>
-                  <Button variant="outline" size="sm" onClick={handleRestoreDefaultShelves} className="text-xs">
+                  <Button type="button" variant="outline" size="sm" onClick={handleRestoreDefaultShelves} className="text-xs">
                     <RotateCcw className="h-3 w-3 mr-1" />
                     Inserir Prateleiras Padrão
                   </Button>
@@ -375,7 +436,7 @@ const SettingsPage = () => {
                 shelves.map(shelf => (
                   <div key={shelf} className="flex items-center justify-between rounded-md bg-muted p-2">
                     <span className="text-sm font-medium">{shelf}</span>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteShelf(shelf)}>
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteShelf(shelf)}>
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   </div>
@@ -394,6 +455,7 @@ const SettingsPage = () => {
               </CardDescription>
             </div>
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
@@ -417,13 +479,13 @@ const SettingsPage = () => {
                   }
                 }}
               />
-              <Button onClick={handleAddBookType}>Adicionar</Button>
+              <Button type="button" onClick={handleAddBookType}>Adicionar</Button>
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
               {bookTypes.length === 0 ? (
                 <div className="text-center py-4 space-y-2">
                   <p className="text-xs text-muted-foreground">Nenhum tipo de livro cadastrado.</p>
-                  <Button variant="outline" size="sm" onClick={handleRestoreDefaultBookTypes} className="text-xs">
+                  <Button type="button" variant="outline" size="sm" onClick={handleRestoreDefaultBookTypes} className="text-xs">
                     <RotateCcw className="h-3 w-3 mr-1" />
                     Inserir Tipos Padrão
                   </Button>
@@ -432,7 +494,7 @@ const SettingsPage = () => {
                 bookTypes.map(type => (
                   <div key={type} className="flex items-center justify-between rounded-md bg-muted p-2">
                     <span className="text-sm font-medium">{type}</span>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteBookType(type)}>
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteBookType(type)}>
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   </div>
@@ -451,6 +513,7 @@ const SettingsPage = () => {
               </CardDescription>
             </div>
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
@@ -474,13 +537,13 @@ const SettingsPage = () => {
                   }
                 }}
               />
-              <Button onClick={handleAddClass}>Adicionar</Button>
+              <Button type="button" onClick={handleAddClass}>Adicionar</Button>
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
               {studentClasses.length === 0 ? (
                 <div className="text-center py-4 space-y-2">
                   <p className="text-xs text-muted-foreground">Nenhuma turma cadastrada.</p>
-                  <Button variant="outline" size="sm" onClick={handleRestoreDefaultClasses} className="text-xs">
+                  <Button type="button" variant="outline" size="sm" onClick={handleRestoreDefaultClasses} className="text-xs">
                     <RotateCcw className="h-3 w-3 mr-1" />
                     Inserir Turmas Padrão (1º ao 9º)
                   </Button>
@@ -489,7 +552,7 @@ const SettingsPage = () => {
                 studentClasses.map(className => (
                   <div key={className} className="flex items-center justify-between rounded-md bg-muted p-2">
                     <span className="text-sm font-medium">{className}</span>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteClass(className)}>
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteClass(className)}>
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   </div>

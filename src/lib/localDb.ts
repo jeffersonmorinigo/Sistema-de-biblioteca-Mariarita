@@ -134,16 +134,16 @@ export function getLocalSettings(): AppSettings {
     const parsed = JSON.parse(raw);
     return {
       schoolName: typeof parsed.schoolName === 'string' ? parsed.schoolName : defaultSettings.schoolName,
-      book_categories: Array.isArray(parsed.book_categories) && parsed.book_categories.length > 0
+      book_categories: Array.isArray(parsed.book_categories)
         ? parsed.book_categories
         : defaultSettings.book_categories,
-      student_classes: Array.isArray(parsed.student_classes) && parsed.student_classes.length > 0
+      student_classes: Array.isArray(parsed.student_classes)
         ? parsed.student_classes
         : defaultSettings.student_classes,
-      book_shelves: Array.isArray(parsed.book_shelves) && parsed.book_shelves.length > 0
+      book_shelves: Array.isArray(parsed.book_shelves)
         ? parsed.book_shelves
         : defaultSettings.book_shelves,
-      book_types: Array.isArray(parsed.book_types) && parsed.book_types.length > 0
+      book_types: Array.isArray(parsed.book_types)
         ? parsed.book_types
         : defaultSettings.book_types,
       barcodeScanner: parsed.barcodeScanner || defaultSettings.barcodeScanner,
@@ -162,10 +162,10 @@ export function saveLocalSettings(settings: Partial<AppSettings>, emitEvent: boo
     const updated: AppSettings = {
       ...current,
       ...settings,
-      book_categories: settings.book_categories ?? current.book_categories ?? defaultSettings.book_categories,
-      student_classes: settings.student_classes ?? current.student_classes ?? defaultSettings.student_classes,
-      book_shelves: settings.book_shelves ?? current.book_shelves ?? defaultSettings.book_shelves,
-      book_types: settings.book_types ?? current.book_types ?? defaultSettings.book_types,
+      book_categories: Array.isArray(settings.book_categories) ? settings.book_categories : (current.book_categories ?? defaultSettings.book_categories),
+      student_classes: Array.isArray(settings.student_classes) ? settings.student_classes : (current.student_classes ?? defaultSettings.student_classes),
+      book_shelves: Array.isArray(settings.book_shelves) ? settings.book_shelves : (current.book_shelves ?? defaultSettings.book_shelves),
+      book_types: Array.isArray(settings.book_types) ? settings.book_types : (current.book_types ?? defaultSettings.book_types),
       barcodeScanner: settings.barcodeScanner ?? current.barcodeScanner ?? defaultSettings.barcodeScanner,
     };
     localStorage.setItem(`${DB_PREFIX}settings`, JSON.stringify(updated));

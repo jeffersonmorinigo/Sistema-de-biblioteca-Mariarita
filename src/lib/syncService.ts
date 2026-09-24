@@ -255,18 +255,18 @@ export function startSettingsSync(
           schoolName: typeof cloudSettings.schoolName === 'string' && cloudSettings.schoolName.trim()
             ? cloudSettings.schoolName
             : (currentLocal.schoolName || defaultSettings.schoolName),
-          book_categories: Array.isArray(cloudSettings.book_categories) && cloudSettings.book_categories.length > 0
+          book_categories: Array.isArray(cloudSettings.book_categories)
             ? cloudSettings.book_categories
-            : (Array.isArray(currentLocal.book_categories) && currentLocal.book_categories.length > 0 ? currentLocal.book_categories : defaultSettings.book_categories),
-          student_classes: Array.isArray(cloudSettings.student_classes) && cloudSettings.student_classes.length > 0
+            : (Array.isArray(currentLocal.book_categories) ? currentLocal.book_categories : defaultSettings.book_categories),
+          student_classes: Array.isArray(cloudSettings.student_classes)
             ? cloudSettings.student_classes
-            : (Array.isArray(currentLocal.student_classes) && currentLocal.student_classes.length > 0 ? currentLocal.student_classes : defaultSettings.student_classes),
-          book_shelves: Array.isArray(cloudSettings.book_shelves) && cloudSettings.book_shelves.length > 0
+            : (Array.isArray(currentLocal.student_classes) ? currentLocal.student_classes : defaultSettings.student_classes),
+          book_shelves: Array.isArray(cloudSettings.book_shelves)
             ? cloudSettings.book_shelves
-            : (Array.isArray(currentLocal.book_shelves) && currentLocal.book_shelves.length > 0 ? currentLocal.book_shelves : defaultSettings.book_shelves),
-          book_types: Array.isArray(cloudSettings.book_types) && cloudSettings.book_types.length > 0
+            : (Array.isArray(currentLocal.book_shelves) ? currentLocal.book_shelves : defaultSettings.book_shelves),
+          book_types: Array.isArray(cloudSettings.book_types)
             ? cloudSettings.book_types
-            : (Array.isArray(currentLocal.book_types) && currentLocal.book_types.length > 0 ? currentLocal.book_types : defaultSettings.book_types),
+            : (Array.isArray(currentLocal.book_types) ? currentLocal.book_types : defaultSettings.book_types),
           barcodeScanner: cloudSettings.barcodeScanner || currentLocal.barcodeScanner || defaultSettings.barcodeScanner,
         };
 
