@@ -21,6 +21,7 @@ import { showSuccess, showError, showInfo } from '@/utils/toast';
 import { Barcode, Sparkles, Loader2, Search, Camera } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { CameraBarcodeScanner } from './CameraBarcodeScanner';
+import { useIsMobileDevice } from '@/utils/deviceUtils';
 
 const bookSchema = z.object({
   code: z.string().min(1, 'Código é obrigatório'),
@@ -54,6 +55,7 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
     autoFetchBookDetails: true,
   };
 
+  const isMobile = useIsMobileDevice();
   const [isFetchingIsbn, setIsFetchingIsbn] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
 
@@ -203,16 +205,18 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
                 placeholder="Ex: 9788535902778 ou bipe da capa"
                 className="flex-grow font-mono text-sm"
               />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => setIsCameraOpen(true)}
-                title="Escanear com a câmera do celular"
-                className="shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400"
-              >
-                <Camera className="h-4 w-4 text-emerald-600" />
-              </Button>
+              {isMobile && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setIsCameraOpen(true)}
+                  title="Escanear com a câmera do celular"
+                  className="shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400"
+                >
+                  <Camera className="h-4 w-4 text-emerald-600" />
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -328,20 +332,22 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
         </div>
       </form>
 
-      <CameraBarcodeScanner
-        isOpen={isCameraOpen}
-        onClose={() => setIsCameraOpen(false)}
-        onScanSuccess={async (barcode) => {
-          setValue('isbn', barcode);
-          if (!watch('code')) {
-            setValue('code', barcode);
-          }
-          showSuccess(`Código "${barcode}" escaneado com sucesso!`);
-          if (scannerSettings.autoFetchBookDetails) {
-            await handleFetchIsbnData(barcode);
-          }
-        }}
-      />
+      {isMobile && (
+        <CameraBarcodeScanner
+          isOpen={isCameraOpen}
+          onClose={() => setIsCameraOpen(false)}
+          onScanSuccess={async (barcode) => {
+            setValue('isbn', barcode);
+            if (!watch('code')) {
+              setValue('code', barcode);
+            }
+            showSuccess(`Código "${barcode}" escaneado com sucesso!`);
+            if (scannerSettings.autoFetchBookDetails) {
+              await handleFetchIsbnData(barcode);
+            }
+          }}
+        />
+      )}
     </DialogContent>
   );
 };

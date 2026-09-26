@@ -36,8 +36,10 @@ import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { isLikelyIsbn, fetchBookDetailsByIsbn } from '@/lib/isbnService';
 import { Badge } from '@/components/ui/badge';
 import { CameraBarcodeScanner } from '@/components/CameraBarcodeScanner';
+import { useIsMobileDevice } from '@/utils/deviceUtils';
 
 const BooksPage = () => {
+  const isMobile = useIsMobileDevice();
   const { data: books, add: addBook, update: updateBook, remove: removeBook } = useFirestore<Book>('books');
   const { data: loans } = useFirestore<Loan>('loans');
   const { settings } = useSettings();
@@ -234,14 +236,17 @@ const BooksPage = () => {
           />
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          <Button
-            type="button"
-            onClick={() => setIsCameraScannerOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm w-full sm:w-auto"
-          >
-            <Camera className="mr-2 h-4 w-4" />
-            Escanear com Câmera
-          </Button>
+          {/* Botão de câmera exclusivo para celulares e tablets */}
+          {isMobile && (
+            <Button
+              type="button"
+              onClick={() => setIsCameraScannerOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm w-full sm:w-auto"
+            >
+              <Camera className="mr-2 h-4 w-4" />
+              Escanear com Câmera
+            </Button>
+          )}
 
           <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
             <DialogTrigger asChild>
@@ -276,11 +281,13 @@ const BooksPage = () => {
       </div>
 
       {/* Scanner pela Câmera para Celulares e Tablets */}
-      <CameraBarcodeScanner
-        isOpen={isCameraScannerOpen}
-        onClose={() => setIsCameraScannerOpen(false)}
-        onScanSuccess={handleProcessScannedCode}
-      />
+      {isMobile && (
+        <CameraBarcodeScanner
+          isOpen={isCameraScannerOpen}
+          onClose={() => setIsCameraScannerOpen(false)}
+          onScanSuccess={handleProcessScannedCode}
+        />
+      )}
 
       <div className="border rounded-lg overflow-x-auto">
         <Table>
