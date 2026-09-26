@@ -26,15 +26,16 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { PlusCircle, Search, Edit, Trash2, Upload, Barcode } from 'lucide-react';
+import { PlusCircle, Search, Edit, Trash2, Upload, Barcode, Camera } from 'lucide-react';
 import { normalizeString } from '@/utils/stringUtils';
 import BookForm, { BookFormData } from '@/components/BookForm';
 import ImportBooksDialog from '@/components/ImportBooksDialog';
 import { showSuccess, showError, showInfo } from '@/utils/toast';
 import { useSettings } from '@/hooks/useSettings';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
-import { isLikelyIsbn } from '@/lib/isbnService';
+import { isLikelyIsbn, fetchBookDetailsByIsbn } from '@/lib/isbnService';
 import { Badge } from '@/components/ui/badge';
+import { CameraBarcodeScanner } from '@/components/CameraBarcodeScanner';
 
 const BooksPage = () => {
   const { data: books, add: addBook, update: updateBook, remove: removeBook } = useFirestore<Book>('books');
@@ -46,6 +47,7 @@ const BooksPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
 
   const scannerSettings = settings.barcodeScanner || {
@@ -55,42 +57,68 @@ const BooksPage = () => {
     autoFetchBookDetails: true,
   };
 
-  // Escuta bips do leitor na tela de livros quando nenhum modal estiver aberto
-  useBarcodeScanner({
-    enabled: scannerSettings.enabled && !isAddDialogOpen && !isImportDialogOpen,
-    onScan: (scannedCode) => {
-      const code = scannedCode.trim();
-      const existingBook = books.find(
-        (b) =>
-          b.code.toUpperCase() === code.toUpperCase() ||
-          (b.isbn && b.isbn.replace(/[^0-9X]/gi, '') === code.replace(/[^0-9X]/gi, ''))
-      );
+  const handleProcessScannedCode = async (scannedCode: string) => {
+    const code = scannedCode.trim();
+    const existingBook = books.find(
+      (b) =>
+        b.code.toUpperCase() === code.toUpperCase() ||
+        (b.isbn && b.isbn.replace(/[^0-9X]/gi, '') === code.replace(/[^0-9X]/gi, ''))
+    );
 
-      if (existingBook) {
-        setSearchTerm(existingBook.code);
-        showSuccess(`Livro localizado: "${existingBook.title}" (Código: ${existingBook.code})`);
-      } else {
-        if (scannerSettings.autoOpenAddModal) {
-          const isIsbn = isLikelyIsbn(code);
-          setSelectedBook({
-            id: '',
-            code: scannerSettings.targetField === 'code' ? code : (isIsbn ? code : ''),
-            isbn: isIsbn ? code : '',
-            title: '',
-            author: '',
-            publisher: '',
-            shelf: shelves[0] || 'N/A',
-            category: categories[0] || 'GERAL',
-            bookType: bookTypes[0] || 'LIVRO',
-            quantity: 1,
-          });
-          setIsAddDialogOpen(true);
-          showInfo(`Código "${code}" capturado pelo leitor! Abrindo cadastro...`);
-        } else {
-          setSearchTerm(code);
-          showInfo(`Código lido: "${code}" (Nenhum livro cadastrado)`);
-        }
+    if (existingBook) {
+      setSearchTerm(existingBook.code);
+      showSuccess(`Livro já cadastrado: "${existingBook.title}" (Código: ${existingBook.code})`);
+      return;
+    }
+
+    if (scannerSettings.autoOpenAddModal) {
+      const isIsbn = isLikelyIsbn(code);
+      let details: any = null;
+
+      if (isIsbn && scannerSettings.autoFetchBookDetails) {
+        showInfo(`Buscando dados do livro na internet (${code})...`);
+        details = await fetchBookDetailsByIsbn(code);
       }
+
+      // Tenta associar categoria encontrada com as categorias do sistema
+      let matchedCategory = categories[0] || 'GERAL';
+      if (details?.category) {
+        const catUpper = details.category.toUpperCase();
+        const found = categories.find((c) => catUpper.includes(c) || c.includes(catUpper));
+        if (found) matchedCategory = found;
+      }
+
+      setSelectedBook({
+        id: '',
+        code: scannerSettings.targetField === 'code' ? code : (isIsbn ? code : ''),
+        isbn: isIsbn ? code : '',
+        title: details?.title ? details.title.toUpperCase() : '',
+        author: details?.author ? details.author.toUpperCase() : '',
+        publisher: details?.publisher ? details.publisher.toUpperCase() : '',
+        shelf: shelves[0] || 'N/A',
+        category: matchedCategory,
+        bookType: bookTypes[0] || 'LIVRO',
+        quantity: 1,
+      });
+
+      setIsAddDialogOpen(true);
+
+      if (details?.title) {
+        showSuccess(`Livro "${details.title}" encontrado! Confirme os dados e salve.`);
+      } else {
+        showInfo(`Código "${code}" lido! Preencha os dados.`);
+      }
+    } else {
+      setSearchTerm(code);
+      showInfo(`Código lido: "${code}" (Nenhum livro cadastrado)`);
+    }
+  };
+
+  // Escuta bips do leitor USB na tela de livros quando nenhum modal estiver aberto
+  useBarcodeScanner({
+    enabled: scannerSettings.enabled && !isAddDialogOpen && !isImportDialogOpen && !isCameraScannerOpen,
+    onScan: (scannedCode) => {
+      handleProcessScannedCode(scannedCode);
     },
   });
 
@@ -205,7 +233,16 @@ const BooksPage = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="flex gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <Button
+            type="button"
+            onClick={() => setIsCameraScannerOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm w-full sm:w-auto"
+          >
+            <Camera className="mr-2 h-4 w-4" />
+            Escanear com Câmera
+          </Button>
+
           <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="w-full sm:w-auto">
@@ -237,6 +274,13 @@ const BooksPage = () => {
           </Dialog>
         </div>
       </div>
+
+      {/* Scanner pela Câmera para Celulares e Tablets */}
+      <CameraBarcodeScanner
+        isOpen={isCameraScannerOpen}
+        onClose={() => setIsCameraScannerOpen(false)}
+        onScanSuccess={handleProcessScannedCode}
+      />
 
       <div className="border rounded-lg overflow-x-auto">
         <Table>

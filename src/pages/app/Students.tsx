@@ -124,7 +124,11 @@ const StudentsPage = () => {
     // Add all imported students
     for (const student of importedStudents) {
       const { id, ...studentData } = student;
-      await addStudent(studentData);
+      await addStudent({
+        ...studentData,
+        isBlocked: Boolean(studentData.isBlocked),
+        blockDate: studentData.blockDate || null,
+      });
     }
 
     // Update classes list based on imported students
