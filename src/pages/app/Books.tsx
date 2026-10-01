@@ -176,14 +176,23 @@ const BooksPage = () => {
   };
 
   const handleDeleteBook = async (bookId: string) => {
-    const bookToDelete = books.find(b => b.id === bookId);
-    if (!bookToDelete) return;
-    if ((activeLoansByCode.get(bookToDelete.code) || 0) > 0) {
-      showError('Não é possível excluir um livro com cópias emprestadas.');
-      return;
+    try {
+      const bookToDelete = books.find(b => b.id === bookId);
+      if (!bookToDelete) {
+        showError('Livro não encontrado para exclusão.');
+        return;
+      }
+      const activeLoans = bookToDelete.code ? (activeLoansByCode.get(bookToDelete.code) || 0) : 0;
+      if (activeLoans > 0) {
+        showError(`Não é possível excluir: existem ${activeLoans} cópia(s) emprestada(s) deste livro.`);
+        return;
+      }
+      await removeBook(bookId);
+      showSuccess(`Livro "${bookToDelete.title || 'Selecionado'}" excluído com sucesso!`);
+    } catch (error: any) {
+      console.error('Erro ao excluir livro:', error);
+      showError('Erro ao excluir livro. Tente novamente.');
     }
-    await removeBook(bookId);
-    showSuccess('Livro excluído com sucesso!');
   };
 
   const handleImportBooks = async (importedBooks: Book[]) => {
@@ -328,8 +337,9 @@ const BooksPage = () => {
           <TableBody>
             {filteredBooks.length > 0 ? (
               filteredBooks.map(book => {
-                const activeLoans = activeLoansByCode.get(book.code) || 0;
-                const available = book.quantity - activeLoans;
+                const quantity = typeof book.quantity === 'number' && !isNaN(book.quantity) ? book.quantity : 1;
+                const activeLoans = book.code ? (activeLoansByCode.get(book.code) || 0) : 0;
+                const available = Math.max(0, quantity - activeLoans);
                 return (
                   <TableRow key={book.id}>
                     <TableCell>{book.code}</TableCell>
@@ -346,7 +356,7 @@ const BooksPage = () => {
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600">
+                          <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" title="Excluir livro">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </AlertDialogTrigger>
@@ -354,13 +364,16 @@ const BooksPage = () => {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Isso excluirá o registro deste livro e todas as suas cópias. A ação não pode ser desfeita.
+                              Isso excluirá o registro do livro <strong>"{book.title}"</strong> (Código: {book.code}) e todas as suas cópias. A ação não pode ser desfeita.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteBook(book.id)}>
-                              Excluir
+                            <AlertDialogAction
+                              className="bg-red-600 hover:bg-red-700 text-white font-semibold"
+                              onClick={() => handleDeleteBook(book.id)}
+                            >
+                              Excluir Livro
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>

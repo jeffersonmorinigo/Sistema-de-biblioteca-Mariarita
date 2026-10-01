@@ -30,13 +30,13 @@ service cloud.firestore {
     match /books/{bookId} {
       allow read: if true;
       allow create, update: if isValidBook();
-      allow delete: if false; // Disallow deletion from client for extra safety
+      allow delete: if true;
     }
     
     match /students/{studentId} {
       allow read: if true;
       allow create, update: if isValidStudent();
-      allow delete: if false;
+      allow delete: if true;
     }
     
     match /loans/{loanId} {
