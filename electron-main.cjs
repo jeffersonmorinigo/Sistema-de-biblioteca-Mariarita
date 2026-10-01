@@ -1,48 +1,52 @@
-const { app, BrowserWindow, ipcMain } = require('electron'); // Adicionado ipcMain
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const { startEmbeddedServer, getLocalIps } = require('./electron/server.cjs');
+
 const isDev = process.env.NODE_ENV === 'development';
+let embeddedServer = null;
 
 function createWindow() {
-  // Cria a janela do navegador.
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    title: 'Sistema de Biblioteca - Maria Rita', // Define o título da janela
-    autoHideMenuBar: true, // Oculta a barra de menu
+    title: 'Sistema de Biblioteca - Maria Rita',
+    autoHideMenuBar: true,
     icon: isDev
       ? path.join(__dirname, 'public', 'logo.png')
-      : path.join(__dirname, 'dist', 'logo.png'), // Ícone da janela
+      : path.join(__dirname, 'dist', 'logo.png'),
     webPreferences: {
-      // Desabilita a integração de node no renderizador por segurança,
-      // a menos que você realmente precise dela e saiba os riscos.
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'electron', 'preload.js'), // Adicionado o script preload
+      preload: path.join(__dirname, 'electron', 'preload.js'),
     },
   });
 
-  mainWindow.maximize(); // Abre maximizado com os botões visíveis
+  mainWindow.maximize();
 
-  // Carrega a aplicação React.
-  // Em desenvolvimento, carrega do servidor Vite.
-  // Em produção, carrega o arquivo index.html do build.
   if (isDev) {
-    mainWindow.loadURL('http://localhost:8080'); // Porta padrão do Vite
-    // Abre as ferramentas de desenvolvedor.
+    mainWindow.loadURL('http://localhost:8080');
     mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
 }
 
-// Este método será chamado quando o Electron terminar a inicialização
-// e estiver pronto para criar janelas do navegador.
 app.whenReady().then(() => {
+  // Inicia servidor embutido HTTP/HTTPS para permitir acesso de celulares na rede local
+  const distPath = path.join(__dirname, 'dist');
+  try {
+    embeddedServer = startEmbeddedServer(distPath, {
+      httpsPort: 8080,
+      httpPort: 8081,
+    });
+  } catch (err) {
+    console.error('[ElectronMain] Falha ao iniciar servidor embutido para celulares:', err);
+  }
+
   createWindow();
 
-  // No macOS, é comum recriar uma janela no aplicativo quando o ícone do dock é clicado e não há outras janelas abertas.
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -50,13 +54,26 @@ app.whenReady().then(() => {
   });
 });
 
-// Ouve o evento 'quit-app' do processo de renderização para fechar o aplicativo
+// Fornece ao frontend React os IPs locais e as portas ativas para o QR Code
+ipcMain.handle('get-network-info', () => {
+  const ips = getLocalIps();
+  const primaryIp = ips[0]?.address || '192.168.100.2';
+  return {
+    ips,
+    primaryIp,
+    httpsPort: embeddedServer?.httpsPort || 8080,
+    httpPort: embeddedServer?.httpPort || 8081,
+  };
+});
+
 ipcMain.on('quit-app', () => {
   app.quit();
 });
 
-// Sai quando todas as janelas são fechadas, exceto no macOS.
 app.on('window-all-closed', () => {
+  if (embeddedServer) {
+    embeddedServer.close();
+  }
   if (process.platform !== 'darwin') {
     app.quit();
   }

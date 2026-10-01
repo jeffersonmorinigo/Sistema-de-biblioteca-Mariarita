@@ -342,7 +342,10 @@ export const MobileCollectorPage: React.FC = () => {
     }
   };
 
-  const httpsUrl = typeof window !== 'undefined' ? window.location.href.replace('http://', 'https://') : '';
+  const httpsUrl =
+    typeof window !== 'undefined'
+      ? window.location.href.replace('http://', 'https://').replace(':8081', ':8080')
+      : '';
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
