@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Smartphone,
   Wifi,
-  ShieldCheck,
+  Globe,
   Camera,
   Copy,
   Check,
@@ -22,6 +22,7 @@ import {
   Sparkles,
   Lock,
   Unlock,
+  CheckCircle2,
 } from 'lucide-react';
 import { showSuccess } from '@/utils/toast';
 
@@ -39,12 +40,17 @@ export const MobileCollectorDialog: React.FC<MobileCollectorDialogProps> = ({
   isOpen,
   onClose,
 }) => {
+  // Modo de conexão: 'cloud' (Web permanente oficial) ou 'local' (IP direto da rede Wi-Fi)
+  const [accessMode, setAccessMode] = useState<'cloud' | 'local'>('cloud');
+
   // IP detectado do computador na rede local Wi-Fi
-  const [ipAddress, setIpAddress] = useState<string>('192.168.100.2');
+  const [ipAddress, setIpAddress] = useState<string>('192.168.1.26');
   const [port, setPort] = useState<string>('8080');
   const [useHttps, setUseHttps] = useState<boolean>(true);
   const [availableIps, setAvailableIps] = useState<NetworkInterface[]>([]);
   const [copied, setCopied] = useState(false);
+
+  const cloudUrl = 'https://sgebiblioteca.web.app/#/coletor';
 
   useEffect(() => {
     // 1. Tenta obter IP real e portas via Electron IPC (se estiver rodando no app desktop)
@@ -72,7 +78,6 @@ export const MobileCollectorDialog: React.FC<MobileCollectorDialogProps> = ({
         const protocol = window.location.protocol;
         const hostname = window.location.hostname;
 
-        // Se estiver no protocolo file:, nunca usar file://!
         if (protocol !== 'file:' && hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
           setIpAddress(hostname);
           setUseHttps(protocol === 'https:');
@@ -88,9 +93,9 @@ export const MobileCollectorDialog: React.FC<MobileCollectorDialogProps> = ({
     }
   }, [isOpen]);
 
-  // Monta a URL para os celulares (nunca usa file:///)
   const protocol = useHttps ? 'https' : 'http';
-  const targetUrl = `${protocol}://${ipAddress}:${port}/#/coletor`;
+  const localUrl = `${protocol}://${ipAddress}:${port}/#/coletor`;
+  const targetUrl = accessMode === 'cloud' ? cloudUrl : localUrl;
 
   const handleCopyUrl = () => {
     navigator.clipboard.writeText(targetUrl);
@@ -101,7 +106,7 @@ export const MobileCollectorDialog: React.FC<MobileCollectorDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[580px] max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="p-2 bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 rounded-lg">
@@ -118,7 +123,38 @@ export const MobileCollectorDialog: React.FC<MobileCollectorDialogProps> = ({
           </div>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-1">
+          {/* Seletor de Modo de Conexão */}
+          <div className="flex rounded-lg bg-muted p-1 gap-1 border">
+            <button
+              type="button"
+              onClick={() => setAccessMode('cloud')}
+              className={`flex-1 py-1.5 px-3 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                accessMode === 'cloud'
+                  ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Link Web Oficial (Recomendado)</span>
+              <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[9px] py-0 px-1 ml-0.5">
+                Direto
+              </Badge>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAccessMode('local')}
+              className={`flex-1 py-1.5 px-3 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                accessMode === 'local'
+                  ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Wifi className="w-3.5 h-3.5" />
+              <span>Rede Wi-Fi Local (Offline)</span>
+            </button>
+          </div>
+
           {/* Box de QR Code e Acesso Rápido */}
           <div className="flex flex-col sm:flex-row items-center gap-5 p-4 bg-slate-50 dark:bg-slate-900 border rounded-xl">
             <div className="p-3 bg-white rounded-lg shadow-sm border border-slate-200 shrink-0">
@@ -132,20 +168,29 @@ export const MobileCollectorDialog: React.FC<MobileCollectorDialogProps> = ({
 
             <div className="space-y-2 text-center sm:text-left flex-1 min-w-0">
               <div className="flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
-                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-300 gap-1 text-[11px]">
-                  <Wifi className="w-3 h-3" />
-                  Rede Wi-Fi Local
-                </Badge>
-                {useHttps ? (
-                  <Badge variant="outline" className="bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-400 border-sky-300 gap-1 text-[11px]">
-                    <Lock className="w-3 h-3" />
-                    HTTPS (Câmera Ativa)
+                {accessMode === 'cloud' ? (
+                  <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-300 gap-1 text-[11px]">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    SSL Certificado • Câmera 100% Liberada
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border-amber-300 gap-1 text-[11px]">
-                    <Unlock className="w-3 h-3" />
-                    HTTP
-                  </Badge>
+                  <>
+                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-300 gap-1 text-[11px]">
+                      <Wifi className="w-3 h-3" />
+                      Wi-Fi Local
+                    </Badge>
+                    {useHttps ? (
+                      <Badge variant="outline" className="bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-400 border-sky-300 gap-1 text-[11px]">
+                        <Lock className="w-3 h-3" />
+                        HTTPS (Porta 8080)
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border-amber-300 gap-1 text-[11px]">
+                        <Unlock className="w-3 h-3" />
+                        HTTP (Porta 8081)
+                      </Badge>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -153,7 +198,9 @@ export const MobileCollectorDialog: React.FC<MobileCollectorDialogProps> = ({
                 Aponte a câmera do celular para o QR Code
               </h4>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Abra a câmera do smartphone ou app de QR Code para abrir o leitor de livros.
+                {accessMode === 'cloud'
+                  ? 'Abre diretamente no navegador de qualquer celular com câmera liberada e sem travas de rede ou firewall.'
+                  : 'Abre pelo endereço IP local do computador (ambos os aparelhos devem estar no mesmo Wi-Fi).'}
               </p>
 
               <div className="pt-1 flex items-center gap-1.5 justify-center sm:justify-start">
@@ -185,120 +232,122 @@ export const MobileCollectorDialog: React.FC<MobileCollectorDialogProps> = ({
           </div>
 
           {/* Passos fáceis para os celulares */}
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             <h5 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-              Instruções para os Coletadores:
+              Instruções para Leitura no Celular:
             </h5>
 
             <div className="grid gap-2 text-xs">
-              <div className="flex items-start gap-2.5 p-2.5 bg-muted/40 rounded-lg border">
+              <div className="flex items-start gap-2.5 p-2 bg-muted/40 rounded-lg border">
                 <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-600 text-white font-bold text-[11px] shrink-0">
                   1
                 </span>
                 <div>
-                  <span className="font-semibold">Mesma rede Wi-Fi:</span>
+                  <span className="font-semibold">Abra no Celular:</span>
                   <p className="text-muted-foreground mt-0.5">
-                    O celular e o computador da biblioteca devem estar conectados na mesma rede Wi-Fi.
+                    Aponte a câmera normal do celular para o QR Code acima ou digite o link no Chrome ou Safari.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-2.5 p-2.5 bg-muted/40 rounded-lg border">
+              <div className="flex items-start gap-2.5 p-2 bg-muted/40 rounded-lg border">
                 <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-600 text-white font-bold text-[11px] shrink-0">
                   2
                 </span>
                 <div>
-                  <span className="font-semibold">Aviso no Celular (Certificado HTTPS Seguro):</span>
+                  <span className="font-semibold">Permitir Câmera:</span>
                   <p className="text-muted-foreground mt-0.5">
-                    Ao abrir a página no celular pela 1ª vez, se exibir <em>"Sua conexão não é privada"</em>, toque em <strong>"Avançado"</strong> e depois em <strong>"Continuar para {ipAddress} (não seguro)"</strong>. O HTTPS é obrigatório pelo Chrome/Safari para liberar a câmera do celular.
+                    Toque em <strong>"Escanear com Câmera"</strong> e confirme em <strong>"Permitir"</strong> quando o navegador solicitar acesso à câmera do smartphone.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-2.5 p-2.5 bg-muted/40 rounded-lg border">
+              <div className="flex items-start gap-2.5 p-2 bg-muted/40 rounded-lg border">
                 <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-600 text-white font-bold text-[11px] shrink-0">
                   3
                 </span>
                 <div>
-                  <span className="font-semibold">Escanear e Cadastrar:</span>
+                  <span className="font-semibold">Bipar Código de Barras (ISBN):</span>
                   <p className="text-muted-foreground mt-0.5">
-                    No celular, toque no botão verde <strong>"Escanear com Câmera"</strong>. Ao bipar o código de barras/ISBN na contracapa, o sistema busca os dados online e salva diretamente no sistema!
+                    Aponte para o código de barras na contracapa do livro. O sistema toca um aviso sonoro (bip), busca na BrasilAPI e salva automaticamente no banco da biblioteca!
                   </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Ajuste de IP e Interfaces de Rede */}
-          <details className="text-xs text-muted-foreground pt-1">
-            <summary className="cursor-pointer hover:underline font-medium text-slate-600 dark:text-slate-400">
-              ⚙️ Opções avançadas de rede (IP do Computador)
-            </summary>
-            <div className="space-y-3 mt-2 p-3 bg-muted/30 rounded-lg border">
-              {availableIps.length > 0 && (
-                <div>
-                  <Label className="text-[11px] mb-1 block">Interfaces de Rede Detectadas:</Label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {availableIps.map((net) => (
-                      <Button
-                        key={net.address}
-                        type="button"
-                        size="sm"
-                        variant={ipAddress === net.address ? 'default' : 'outline'}
-                        onClick={() => setIpAddress(net.address)}
-                        className="h-7 text-xs px-2"
-                      >
-                        {net.name}: {net.address}
-                      </Button>
-                    ))}
+          {/* Ajuste de IP e Interfaces de Rede (para modo Local) */}
+          {accessMode === 'local' && (
+            <details className="text-xs text-muted-foreground pt-1">
+              <summary className="cursor-pointer hover:underline font-medium text-slate-600 dark:text-slate-400">
+                ⚙️ Configurações avançadas de IP local ({ipAddress})
+              </summary>
+              <div className="space-y-2 mt-2 p-2.5 bg-muted/30 rounded-lg border">
+                {availableIps.length > 0 && (
+                  <div>
+                    <Label className="text-[11px] mb-1 block">Adaptadores detectados:</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {availableIps.map((net) => (
+                        <Button
+                          key={net.address}
+                          type="button"
+                          size="sm"
+                          variant={ipAddress === net.address ? 'default' : 'outline'}
+                          onClick={() => setIpAddress(net.address)}
+                          className="h-7 text-xs px-2"
+                        >
+                          {net.name}: {net.address}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-4 gap-2">
+                  <div className="col-span-2">
+                    <Label htmlFor="ipInput" className="text-[11px]">IP do Computador</Label>
+                    <Input
+                      id="ipInput"
+                      value={ipAddress}
+                      onChange={(e) => setIpAddress(e.target.value)}
+                      className="h-8 text-xs font-mono"
+                      placeholder="192.168.1.26"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="portInput" className="text-[11px]">Porta</Label>
+                    <Input
+                      id="portInput"
+                      value={port}
+                      onChange={(e) => setPort(e.target.value)}
+                      className="h-8 text-xs font-mono"
+                      placeholder="8080"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[11px]">Protocolo</Label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const next = !useHttps;
+                        setUseHttps(next);
+                        setPort(next ? '8080' : '8081');
+                      }}
+                      className="h-8 w-full text-xs"
+                    >
+                      {useHttps ? 'HTTPS (8080)' : 'HTTP (8081)'}
+                    </Button>
                   </div>
                 </div>
-              )}
-
-              <div className="grid grid-cols-4 gap-2">
-                <div className="col-span-2">
-                  <Label htmlFor="ipInput" className="text-[11px]">IP do Computador</Label>
-                  <Input
-                    id="ipInput"
-                    value={ipAddress}
-                    onChange={(e) => setIpAddress(e.target.value)}
-                    className="h-8 text-xs font-mono"
-                    placeholder="Ex: 192.168.100.2"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="portInput" className="text-[11px]">Porta</Label>
-                  <Input
-                    id="portInput"
-                    value={port}
-                    onChange={(e) => setPort(e.target.value)}
-                    className="h-8 text-xs font-mono"
-                    placeholder="8080"
-                  />
-                </div>
-                <div>
-                  <Label className="text-[11px]">Protocolo</Label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const next = !useHttps;
-                      setUseHttps(next);
-                      setPort(next ? '8080' : '8081');
-                    }}
-                    className="h-8 w-full text-xs"
-                  >
-                    {useHttps ? 'HTTPS (8080)' : 'HTTP (8081)'}
-                  </Button>
-                </div>
               </div>
-            </div>
-          </details>
+            </details>
+          )}
         </div>
 
-        <div className="flex justify-end pt-3 border-t">
+        <div className="flex justify-end pt-2 border-t">
           <Button
             type="button"
             variant="default"
