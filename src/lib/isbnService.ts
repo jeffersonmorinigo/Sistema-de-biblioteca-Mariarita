@@ -39,7 +39,31 @@ export async function fetchBookDetailsByIsbn(rawIsbn: string): Promise<BookApiDe
   if (!isbn) return null;
 
   try {
-    // 1. Tentar Google Books API
+    // 1. Tentar BrasilAPI (Excelente para acervo e livros nacionais cadastrados na CBL)
+    const brasilRes = await fetch(`https://brasilapi.com.br/api/isbn/v1/${isbn}`);
+    if (brasilRes.ok) {
+      const bData = await brasilRes.json();
+      if (bData && (bData.title || bData.name)) {
+        const authors = Array.isArray(bData.authors)
+          ? bData.authors.join(', ')
+          : bData.authors || '';
+        return {
+          title: bData.title || bData.name || '',
+          author: authors,
+          publisher: bData.publisher || '',
+          description: bData.synopsis || '',
+          pageCount: bData.page_count || undefined,
+          publishedDate: bData.year ? String(bData.year) : '',
+          thumbnail: bData.cover_url || '',
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[IsbnService] BrasilAPI falhou, tentando Google Books...', err);
+  }
+
+  try {
+    // 2. Fallback: Google Books API
     const googleRes = await fetch(
       `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`
     );
