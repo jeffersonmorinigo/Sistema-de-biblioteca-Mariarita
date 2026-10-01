@@ -2,6 +2,7 @@ import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import PrivateRoute from './auth/PrivateRoute';
 import LoginPage from './pages/Login';
+import MobileCollectorPage from './pages/MobileCollectorPage';
 import BooksPage from './pages/app/Books';
 import UsersPage from './pages/app/Users';
 import StudentsPage from './pages/app/Students';
@@ -27,6 +28,7 @@ const AppRoutes = () => {
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/coletor" element={<MobileCollectorPage />} />
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>

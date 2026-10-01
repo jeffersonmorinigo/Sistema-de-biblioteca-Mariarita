@@ -26,7 +26,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { PlusCircle, Search, Edit, Trash2, Upload, Barcode, Camera } from 'lucide-react';
+import { PlusCircle, Search, Edit, Trash2, Upload, Barcode, Camera, Smartphone } from 'lucide-react';
 import { normalizeString } from '@/utils/stringUtils';
 import BookForm, { BookFormData } from '@/components/BookForm';
 import ImportBooksDialog from '@/components/ImportBooksDialog';
@@ -36,6 +36,7 @@ import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { isLikelyIsbn, fetchBookDetailsByIsbn } from '@/lib/isbnService';
 import { Badge } from '@/components/ui/badge';
 import { CameraBarcodeScanner } from '@/components/CameraBarcodeScanner';
+import { MobileCollectorDialog } from '@/components/MobileCollectorDialog';
 import { useIsMobileDevice } from '@/utils/deviceUtils';
 
 const BooksPage = () => {
@@ -50,6 +51,7 @@ const BooksPage = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
+  const [isMobileCollectorOpen, setIsMobileCollectorOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
 
   const scannerSettings = settings.barcodeScanner || {
@@ -236,7 +238,7 @@ const BooksPage = () => {
           />
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          {/* Botão de câmera exclusivo para celulares e tablets */}
+          {/* Botão de câmera EXCLUSIVO para celulares e tablets */}
           {isMobile && (
             <Button
               type="button"
@@ -245,6 +247,19 @@ const BooksPage = () => {
             >
               <Camera className="mr-2 h-4 w-4" />
               Escanear com Câmera
+            </Button>
+          )}
+
+          {/* Botão para conectar celulares via QR Code (exibido no computador) */}
+          {!isMobile && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsMobileCollectorOpen(true)}
+              className="border-emerald-600/50 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40 w-full sm:w-auto font-medium"
+            >
+              <Smartphone className="mr-2 h-4 w-4 text-emerald-600" />
+              Conectar Celulares
             </Button>
           )}
 
@@ -280,7 +295,7 @@ const BooksPage = () => {
         </div>
       </div>
 
-      {/* Scanner pela Câmera para Celulares e Tablets */}
+      {/* Scanner pela Câmera (exclusivo para celulares e tablets) */}
       {isMobile && (
         <CameraBarcodeScanner
           isOpen={isCameraScannerOpen}
@@ -288,6 +303,12 @@ const BooksPage = () => {
           onScanSuccess={handleProcessScannedCode}
         />
       )}
+
+      {/* Modal de Conexão de Celulares com QR Code */}
+      <MobileCollectorDialog
+        isOpen={isMobileCollectorOpen}
+        onClose={() => setIsMobileCollectorOpen(false)}
+      />
 
       <div className="border rounded-lg overflow-x-auto">
         <Table>

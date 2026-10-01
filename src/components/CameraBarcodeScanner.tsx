@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Camera, Flashlight, RefreshCw, X, AlertCircle } from 'lucide-react';
+import { Camera, Flashlight, RefreshCw, AlertCircle, ShieldAlert, SwitchCamera, ExternalLink } from 'lucide-react';
 import { showError } from '@/utils/toast';
 
 interface CameraBarcodeScannerProps {
@@ -22,6 +22,10 @@ export const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isInsecureHttp, setIsInsecureHttp] = useState(false);
+  const [availableCameras, setAvailableCameras] = useState<Array<{ id: string; label: string }>>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
+
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerId = 'interactive-camera-barcode-reader';
   const lastScannedCode = useRef<string>('');
@@ -66,6 +70,20 @@ export const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({
       return;
     }
 
+    // 1. Verificação de Contexto Seguro (HTTPS / Localhost)
+    if (
+      typeof window !== 'undefined' &&
+      !window.isSecureContext &&
+      window.location.protocol !== 'https:' &&
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1'
+    ) {
+      setIsInsecureHttp(true);
+      return;
+    } else {
+      setIsInsecureHttp(false);
+    }
+
     let isMounted = true;
     setErrorMessage(null);
 
@@ -74,6 +92,16 @@ export const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({
         // Aguarda a renderização do DOM do dialog
         await new Promise((resolve) => setTimeout(resolve, 350));
         if (!isMounted) return;
+
+        // Tenta listar câmeras disponíveis para troca de câmera caso necessário
+        try {
+          const devices = await Html5Qrcode.getCameras();
+          if (devices && devices.length > 0 && isMounted) {
+            setAvailableCameras(devices);
+          }
+        } catch (e) {
+          // Permissão pode ainda não ter sido concedida
+        }
 
         const formatsToSupport = [
           Html5QrcodeSupportedFormats.EAN_13,
@@ -101,11 +129,14 @@ export const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({
               height: Math.floor(minEdge * 0.45), // Formato retangular ideal para códigos de barras de livros
             };
           },
-          aspectRatio: 1.0,
         };
 
+        const cameraSource = selectedCameraId
+          ? { deviceId: { exact: selectedCameraId } }
+          : { facingMode: 'environment' };
+
         await html5QrCode.start(
-          { facingMode: 'environment' },
+          cameraSource,
           config,
           (decodedText) => {
             const now = Date.now();
@@ -132,6 +163,14 @@ export const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({
 
         if (isMounted) {
           setIsScanning(true);
+          // Atualiza lista de câmeras após permissão
+          try {
+            const devices = await Html5Qrcode.getCameras();
+            if (devices && devices.length > 0) {
+              setAvailableCameras(devices);
+            }
+          } catch (e) {}
+
           // Verifica se há suporte para lanterna (Torch)
           try {
             const runningTrack = (html5QrCode as any).getRunningTrackCapabilities?.();
@@ -158,7 +197,7 @@ export const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({
       isMounted = false;
       stopScanner();
     };
-  }, [isOpen]);
+  }, [isOpen, selectedCameraId]);
 
   const stopScanner = async () => {
     if (scannerRef.current) {
@@ -189,6 +228,16 @@ export const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({
     }
   };
 
+  const switchCamera = () => {
+    if (availableCameras.length <= 1) return;
+    const currentIndex = availableCameras.findIndex((c) => c.id === selectedCameraId);
+    const nextIndex = (currentIndex + 1) % availableCameras.length;
+    stopScanner();
+    setSelectedCameraId(availableCameras[nextIndex].id);
+  };
+
+  const httpsUrl = typeof window !== 'undefined' ? window.location.href.replace('http://', 'https://') : '';
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md w-full p-4 sm:p-6 bg-slate-900 text-white border-slate-800">
@@ -204,10 +253,44 @@ export const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({
           </p>
         </DialogHeader>
 
-        {errorMessage ? (
+        {isInsecureHttp ? (
+          <div className="bg-amber-950/80 border border-amber-700/70 rounded-xl p-5 text-center my-3 space-y-3">
+            <ShieldAlert className="w-10 h-10 text-amber-400 mx-auto" />
+            <h4 className="font-semibold text-amber-100 text-base">Acesso HTTPS Necessário no Celular</h4>
+            <p className="text-xs text-amber-200/90 leading-relaxed text-left">
+              Os navegadores de celular (Google Chrome e Safari) bloqueiam o uso da câmera quando a conexão não é segura (HTTP).
+            </p>
+            <div className="bg-black/50 p-3 rounded-lg border border-amber-800/40 text-left space-y-1">
+              <span className="text-[11px] text-amber-400 font-semibold block">Acesse pelo endereço HTTPS:</span>
+              <a
+                href={httpsUrl}
+                className="text-xs font-mono text-emerald-400 underline break-all flex items-center gap-1 hover:text-emerald-300"
+              >
+                {httpsUrl}
+                <ExternalLink className="w-3 h-3 shrink-0" />
+              </a>
+            </div>
+            <p className="text-[11px] text-slate-400 text-left">
+              💡 <em>Dica:</em> Ao abrir com HTTPS, caso o navegador mostre "Sua conexão não é privada", toque em <strong>Avançado</strong> e depois em <strong>Continuar para este site</strong>.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                window.location.href = httpsUrl;
+              }}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white border-none mt-2"
+            >
+              Ir para versão HTTPS
+            </Button>
+          </div>
+        ) : errorMessage ? (
           <div className="bg-red-950/60 border border-red-800 rounded-lg p-4 text-center my-4">
             <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
             <p className="text-sm font-medium text-red-200">{errorMessage}</p>
+            <p className="text-xs text-slate-400 mt-2">
+              Certifique-se de conceder permissão de câmera ao navegador do celular.
+            </p>
             <Button
               variant="outline"
               size="sm"
@@ -238,7 +321,7 @@ export const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({
               </div>
             )}
 
-            {!isScanning && !errorMessage && (
+            {!isScanning && !errorMessage && !isInsecureHttp && (
               <div className="flex flex-col items-center gap-2 text-slate-400">
                 <RefreshCw className="w-6 h-6 animate-spin text-emerald-400" />
                 <span className="text-xs">Iniciando câmera...</span>
@@ -248,20 +331,34 @@ export const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({
         )}
 
         <div className="flex items-center justify-between mt-4 pt-2 border-t border-slate-800">
-          {hasTorch && isScanning ? (
-            <Button
-              type="button"
-              variant={torchEnabled ? 'default' : 'outline'}
-              size="sm"
-              onClick={toggleTorch}
-              className="gap-2 text-xs"
-            >
-              <Flashlight className="w-4 h-4" />
-              {torchEnabled ? 'Desligar Lanterna' : 'Ligar Lanterna'}
-            </Button>
-          ) : (
-            <div />
-          )}
+          <div className="flex items-center gap-2">
+            {hasTorch && isScanning && (
+              <Button
+                type="button"
+                variant={torchEnabled ? 'default' : 'outline'}
+                size="sm"
+                onClick={toggleTorch}
+                className="gap-2 text-xs"
+              >
+                <Flashlight className="w-4 h-4" />
+                {torchEnabled ? 'Lanterna On' : 'Lanterna'}
+              </Button>
+            )}
+
+            {availableCameras.length > 1 && isScanning && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={switchCamera}
+                title="Trocar câmera"
+                className="gap-2 text-xs border-slate-700 text-slate-300"
+              >
+                <SwitchCamera className="w-4 h-4" />
+                Trocar Câmera
+              </Button>
+            )}
+          </div>
 
           <Button
             type="button"
@@ -270,7 +367,7 @@ export const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({
             onClick={onClose}
             className="text-xs text-slate-300 hover:text-white"
           >
-            Cancelar
+            Fechar
           </Button>
         </div>
       </DialogContent>
