@@ -40,8 +40,8 @@ export const MobileCollectorDialog: React.FC<MobileCollectorDialogProps> = ({
   isOpen,
   onClose,
 }) => {
-  // Modo de conexão: 'cloud' (Web permanente oficial) ou 'local' (IP direto da rede Wi-Fi)
-  const [accessMode, setAccessMode] = useState<'cloud' | 'local'>('cloud');
+  // Modo de conexão: 'local' (IP direto da rede Wi-Fi) ou 'cloud' (Maria Rita Web)
+  const [accessMode, setAccessMode] = useState<'cloud' | 'local'>('local');
 
   // IP detectado do computador na rede local Wi-Fi
   const [ipAddress, setIpAddress] = useState<string>('192.168.1.26');
@@ -50,7 +50,13 @@ export const MobileCollectorDialog: React.FC<MobileCollectorDialogProps> = ({
   const [availableIps, setAvailableIps] = useState<NetworkInterface[]>([]);
   const [copied, setCopied] = useState(false);
 
-  const cloudUrl = 'https://sgebiblioteca.web.app/#/coletor';
+  const cloudUrl =
+    typeof window !== 'undefined' &&
+    window.location.hostname &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1'
+      ? `${window.location.origin}/#/coletor`
+      : 'https://sistemadebibliotecamariarita.firebaseapp.com/#/coletor';
 
   useEffect(() => {
     // 1. Tenta obter IP real e portas via Electron IPC (se estiver rodando no app desktop)
@@ -128,21 +134,6 @@ export const MobileCollectorDialog: React.FC<MobileCollectorDialogProps> = ({
           <div className="flex rounded-lg bg-muted p-1 gap-1 border">
             <button
               type="button"
-              onClick={() => setAccessMode('cloud')}
-              className={`flex-1 py-1.5 px-3 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-                accessMode === 'cloud'
-                  ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Globe className="w-3.5 h-3.5" />
-              <span>Link Web Oficial (Recomendado)</span>
-              <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[9px] py-0 px-1 ml-0.5">
-                Direto
-              </Badge>
-            </button>
-            <button
-              type="button"
               onClick={() => setAccessMode('local')}
               className={`flex-1 py-1.5 px-3 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
                 accessMode === 'local'
@@ -151,7 +142,22 @@ export const MobileCollectorDialog: React.FC<MobileCollectorDialogProps> = ({
               }`}
             >
               <Wifi className="w-3.5 h-3.5" />
-              <span>Rede Wi-Fi Local (Offline)</span>
+              <span>Rede Wi-Fi Local (Recomendado)</span>
+              <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[9px] py-0 px-1 ml-0.5">
+                Direto
+              </Badge>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAccessMode('cloud')}
+              className={`flex-1 py-1.5 px-3 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                accessMode === 'cloud'
+                  ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Link Web Maria Rita</span>
             </button>
           </div>
 

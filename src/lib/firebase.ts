@@ -6,12 +6,12 @@ import {
 } from 'firebase/firestore';
 
 const firebaseConfig = {
-    apiKey: "AIzaSyBkpRTlwdG1MTJZ9FsSSdtusElKN6S_vDQ",
-    authDomain: "sgebiblioteca.firebaseapp.com",
-    projectId: "sgebiblioteca",
-    storageBucket: "sgebiblioteca.firebasestorage.app",
-    messagingSenderId: "662718943634",
-    appId: "1:662718943634:web:87eb530304d4e3d480f14b",
+    apiKey: "AIzaSyBFkjB_HaACPN-_pJ0EKEum2gOHq0y7dzI",
+    authDomain: "sistemadebibliotecamariarita.firebaseapp.com",
+    projectId: "sistemadebibliotecamariarita",
+    storageBucket: "sistemadebibliotecamariarita.firebasestorage.app",
+    messagingSenderId: "818593704821",
+    appId: "1:818593704821:web:1fa5c44bf2d12527aec13c",
     measurementId: "G-X4N9YEWQJQ"
 };
 

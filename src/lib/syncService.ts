@@ -17,6 +17,7 @@ import {
   getLocalSettings,
   saveLocalSettings,
   defaultSettings,
+  getLocalDeletedIds,
   SyncItem,
 } from './localDb';
 import { AppSettings } from './firestoreService';
@@ -108,7 +109,17 @@ export async function processSyncQueue(): Promise<void> {
           dequeueSyncOperation(item.id);
         } else if (item.action === 'delete') {
           const docRef = doc(db, item.collection, item.docId);
-          await deleteDoc(docRef);
+          try {
+            await deleteDoc(docRef);
+          } catch (delErr: any) {
+            // Se o Firestore bloquear exclusão física (regras de segurança), aplica soft-delete
+            if (delErr?.code === 'permission-denied' || delErr?.message?.includes('permission')) {
+              console.warn(`[SyncService] Delete físico bloqueado por permissão em ${item.collection}/${item.docId}, marcando como deletado na nuvem...`);
+              await setDoc(docRef, { isDeleted: true, status: 'deleted', title: '[EXCLUIDO]' }, { merge: true }).catch(() => {});
+            } else {
+              throw delErr;
+            }
+          }
           dequeueSyncOperation(item.id);
         } else if (item.action === 'setSettings') {
           const docRef = doc(db, 'settings', SETTINGS_DOC_ID);
@@ -164,18 +175,22 @@ export function startCollectionSync<T extends { id: string }>(
   return onSnapshot(
     colRef,
     (snapshot) => {
-      // Itens que vêm do Firebase
-      const cloudItems = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      })) as T[];
+      // Itens que vêm do Firebase (ignora documentos com flag isDeleted ou status deleted)
+      const cloudItems = snapshot.docs
+        .map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }))
+        .filter((item: any) => !item.isDeleted && item.status !== 'deleted') as T[];
 
-      // Identifica itens locais que estão na fila de sync pendente de envio
+      // Identifica itens locais que estão na fila de sync pendente de envio ou na lista de deletados
+      const deletedLocalIds = getLocalDeletedIds(collectionName);
       const pendingSyncOps = getSyncQueue().filter((q) => q.collection === collectionName);
       const pendingDocIds = new Set(pendingSyncOps.map((q) => q.docId));
-      const deletedDocIds = new Set(
-        pendingSyncOps.filter((q) => q.action === 'delete').map((q) => q.docId)
-      );
+      const deletedDocIds = new Set([
+        ...pendingSyncOps.filter((q) => q.action === 'delete').map((q) => q.docId),
+        ...deletedLocalIds,
+      ]);
 
       const localItems = getLocalCollection<T>(collectionName);
 
@@ -183,7 +198,7 @@ export function startCollectionSync<T extends { id: string }>(
       // Mantém itens locais que foram criados/alterados e ainda não foram enviados
       const mergedMap = new Map<string, T>();
 
-      // 1. Adiciona itens da nuvem (exceto os que foram deletados localmente na fila)
+      // 1. Adiciona itens da nuvem (exceto os que foram deletados localmente)
       cloudItems.forEach((item) => {
         if (!deletedDocIds.has(item.id)) {
           mergedMap.set(item.id, item);

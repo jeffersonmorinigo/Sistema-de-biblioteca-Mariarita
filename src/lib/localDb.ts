@@ -1,9 +1,10 @@
 import { AppSettings } from './firestoreService';
 
 const DB_PREFIX = 'biblioteca_local_';
-const CURRENT_PROJECT_VERSION = 'v2_sgebiblioteca';
+const DELETED_ITEMS_PREFIX = 'biblioteca_deleted_';
+const CURRENT_PROJECT_VERSION = 'v3_mariarita';
 
-// Limpa cache de dados do projeto antigo caso o usuário tenha dados no LocalStorage
+// Limpa cache de dados caso o usuário tenha dados de versão anterior
 if (typeof window !== 'undefined') {
   try {
     const savedVersion = localStorage.getItem('biblioteca_db_version');
@@ -60,13 +61,57 @@ function notifyChange(collection: string) {
 }
 
 /**
+ * Lê IDs de itens deletados localmente
+ */
+export function getLocalDeletedIds(collectionName: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(`${DELETED_ITEMS_PREFIX}${collectionName}`);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Marca um ID como deletado para evitar ressurgimento por snapshot antigo
+ */
+export function markLocalDeleted(collectionName: string, id: string): void {
+  try {
+    const set = getLocalDeletedIds(collectionName);
+    set.add(id);
+    localStorage.setItem(`${DELETED_ITEMS_PREFIX}${collectionName}`, JSON.stringify(Array.from(set)));
+  } catch (e) {
+    console.error('[LocalDB] Erro ao marcar item como deletado:', e);
+  }
+}
+
+/**
+ * Desmarca um ID deletado (caso seja recadastrado/importado)
+ */
+export function unmarkLocalDeleted(collectionName: string, id: string): void {
+  try {
+    const set = getLocalDeletedIds(collectionName);
+    if (set.has(id)) {
+      set.delete(id);
+      localStorage.setItem(`${DELETED_ITEMS_PREFIX}${collectionName}`, JSON.stringify(Array.from(set)));
+    }
+  } catch (e) {
+    console.error('[LocalDB] Erro ao desmarcar item deletado:', e);
+  }
+}
+
+/**
  * Lê uma coleção completa do armazenamento local
  */
 export function getLocalCollection<T extends { id: string }>(collectionName: string): T[] {
   try {
     const raw = localStorage.getItem(`${DB_PREFIX}${collectionName}`);
     if (!raw) return [];
-    return JSON.parse(raw) as T[];
+    const items = JSON.parse(raw) as T[];
+    const deletedSet = getLocalDeletedIds(collectionName);
+    return items.filter((item) => !deletedSet.has(item.id));
   } catch (error) {
     console.warn(`[LocalDB] Erro ao ler coleção ${collectionName}:`, error);
     return [];
@@ -82,7 +127,9 @@ export function saveLocalCollection<T extends { id: string }>(
   emitEvent: boolean = true
 ): void {
   try {
-    localStorage.setItem(`${DB_PREFIX}${collectionName}`, JSON.stringify(items));
+    const deletedSet = getLocalDeletedIds(collectionName);
+    const validItems = items.filter((item) => !deletedSet.has(item.id));
+    localStorage.setItem(`${DB_PREFIX}${collectionName}`, JSON.stringify(validItems));
     if (emitEvent) {
       notifyChange(collectionName);
     }
@@ -99,6 +146,7 @@ export function upsertLocalItem<T extends { id: string }>(
   item: T,
   emitEvent: boolean = true
 ): void {
+  unmarkLocalDeleted(collectionName, item.id);
   const items = getLocalCollection<T>(collectionName);
   const index = items.findIndex((i) => i.id === item.id);
   if (index >= 0) {
@@ -134,6 +182,7 @@ export function removeLocalItem(
   id: string,
   emitEvent: boolean = true
 ): void {
+  markLocalDeleted(collectionName, id);
   const items = getLocalCollection(collectionName);
   const filtered = items.filter((i) => i.id !== id);
   saveLocalCollection(collectionName, filtered, emitEvent);

@@ -25,4 +25,5 @@ dist-ssr
 
 release/
 *.exe
+.firebase/
 
