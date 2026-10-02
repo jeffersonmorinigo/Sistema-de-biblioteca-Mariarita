@@ -1,6 +1,21 @@
 import { AppSettings } from './firestoreService';
 
 const DB_PREFIX = 'biblioteca_local_';
+const CURRENT_PROJECT_VERSION = 'v2_sgebiblioteca';
+
+// Limpa cache de dados do projeto antigo caso o usuário tenha dados no LocalStorage
+if (typeof window !== 'undefined') {
+  try {
+    const savedVersion = localStorage.getItem('biblioteca_db_version');
+    if (savedVersion !== CURRENT_PROJECT_VERSION) {
+      localStorage.removeItem(`${DB_PREFIX}books`);
+      localStorage.removeItem(`${DB_PREFIX}students`);
+      localStorage.removeItem(`${DB_PREFIX}loans`);
+      localStorage.removeItem(`${DB_PREFIX}sync_queue`);
+      localStorage.setItem('biblioteca_db_version', CURRENT_PROJECT_VERSION);
+    }
+  } catch (e) {}
+}
 
 export interface SyncItem {
   id: string;
