@@ -100,6 +100,7 @@ export interface BarcodeScannerSettings {
     targetField: 'code' | 'isbn' | 'both';
     autoOpenAddModal: boolean;
     autoFetchBookDetails: boolean;
+    autoSaveWhenFound?: boolean;
 }
 
 export interface AppSettings {
@@ -132,6 +133,7 @@ const defaultSettings: AppSettings = {
         targetField: 'code',
         autoOpenAddModal: true,
         autoFetchBookDetails: true,
+        autoSaveWhenFound: true,
     },
 };
 

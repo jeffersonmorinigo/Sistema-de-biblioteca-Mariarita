@@ -16,9 +16,9 @@ import { ShelfCombobox } from './ShelfCombobox';
 import { BookTypeCombobox } from './BookTypeCombobox';
 import { useSettings } from '@/hooks/useSettings';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
-import { fetchBookDetailsByIsbn, isLikelyIsbn } from '@/lib/isbnService';
+import { fetchBookDetailsByIsbn, isLikelyIsbn, cleanIsbn, matchSystemCategory, matchSystemBookType } from '@/lib/isbnService';
 import { showSuccess, showError, showInfo } from '@/utils/toast';
-import { Barcode, Sparkles, Loader2, Search, Camera } from 'lucide-react';
+import { Barcode, Sparkles, Loader2, Search, Camera, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { CameraBarcodeScanner } from './CameraBarcodeScanner';
 import { useIsMobileDevice } from '@/utils/deviceUtils';
@@ -59,6 +59,13 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
   const [isFetchingIsbn, setIsFetchingIsbn] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
 
+  // Apenas considera edição se o livro já possui um ID salvo no banco
+  const isEditMode = Boolean(book && book.id);
+
+  const defaultCategory = book?.category || categories[0] || 'LITERATURA';
+  const defaultShelf = book?.shelf || shelves[0] || 'PRATELEIRA 1';
+  const defaultType = book?.bookType || bookTypes[0] || 'LIVRO';
+
   const {
     register,
     handleSubmit,
@@ -68,16 +75,16 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
     formState: { errors },
   } = useForm<BookFormData>({
     resolver: zodResolver(bookSchema),
-    defaultValues: book || {
-      code: '',
-      isbn: '',
-      title: '',
-      author: '',
-      publisher: '',
-      shelf: '',
-      category: '',
-      bookType: '',
-      quantity: 1,
+    defaultValues: {
+      code: book?.code || '',
+      isbn: book?.isbn || '',
+      title: book?.title || '',
+      author: book?.author || '',
+      publisher: book?.publisher || '',
+      shelf: defaultShelf,
+      category: defaultCategory,
+      bookType: defaultType,
+      quantity: typeof book?.quantity === 'number' && !isNaN(book?.quantity) ? book?.quantity : 1,
     },
   });
 
@@ -85,34 +92,47 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
   const watchedShelf = watch('shelf');
   const watchedBookType = watch('bookType');
   const watchedIsbn = watch('isbn');
+  const watchedTitle = watch('title');
+  const watchedAuthor = watch('author');
+
+  // Detecta se o livro foi cadastrado anteriormente com dados fictícios/provisórios
+  const isProvisional =
+    Boolean(watchedTitle && watchedTitle.toUpperCase().startsWith('LIVRO CÓDIGO')) ||
+    Boolean(watchedAuthor && watchedAuthor.toUpperCase() === 'A DEFINIR');
 
   // Consulta detalhes do livro online
   const handleFetchIsbnData = async (isbnValue: string) => {
-    if (!isbnValue.trim()) {
+    const clean = cleanIsbn(isbnValue);
+    if (!clean) {
       showError('Informe um ISBN para buscar.');
       return;
     }
 
     setIsFetchingIsbn(true);
     try {
-      const details = await fetchBookDetailsByIsbn(isbnValue);
-      if (details) {
-        if (details.title) setValue('title', details.title.toUpperCase());
-        if (details.author) setValue('author', details.author.toUpperCase());
-        if (details.publisher) setValue('publisher', details.publisher.toUpperCase());
+      const details = await fetchBookDetailsByIsbn(clean);
+      if (details && details.title) {
+        setValue('title', details.title.toUpperCase(), { shouldValidate: true });
+        setValue('author', (details.author || 'AUTOR NÃO INFORMADO').toUpperCase(), { shouldValidate: true });
+        setValue('publisher', (details.publisher || 'N/A').toUpperCase(), { shouldValidate: true });
 
-        // Se tiver categoria sugerida e estiver nas cadastradas
-        if (details.category) {
-          const upperCat = details.category.toUpperCase();
-          const matchedCategory = categories.find((c) => upperCat.includes(c) || c.includes(upperCat));
-          if (matchedCategory) {
-            setValue('category', matchedCategory);
-          }
+        const matchedCategory = matchSystemCategory(details.category, categories) || watch('category') || categories[0] || 'LITERATURA';
+        setValue('category', matchedCategory, { shouldValidate: true });
+
+        const matchedType = matchSystemBookType(details.bookType, bookTypes) || watch('bookType') || bookTypes[0] || 'LIVRO';
+        setValue('bookType', matchedType, { shouldValidate: true });
+
+        if (!watch('shelf')) {
+          setValue('shelf', shelves[0] || 'PRATELEIRA 1', { shouldValidate: true });
         }
 
-        showSuccess(`Dados do livro "${details.title}" preenchidos automaticamente!`);
+        if (clean && (!watch('isbn') || watch('isbn') !== clean)) {
+          setValue('isbn', clean, { shouldValidate: true });
+        }
+
+        showSuccess(`Dados de "${details.title}" preenchidos com sucesso!`);
       } else {
-        showInfo('ISBN não localizado nos cadastros online. Preencha manualmente.');
+        showInfo('ISBN não localizado nos cadastros online. Preencha os dados manualmente.');
       }
     } catch (err) {
       showError('Erro ao consultar ISBN na internet.');
@@ -128,37 +148,64 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
       const code = scannedCode.trim();
       const isIsbn = isLikelyIsbn(code);
 
+      // Garante que campos essenciais nunca fiquem em branco
+      if (!watch('shelf')) setValue('shelf', shelves[0] || 'PRATELEIRA 1', { shouldValidate: true });
+      if (!watch('category')) setValue('category', categories[0] || 'LITERATURA', { shouldValidate: true });
+      if (!watch('bookType')) setValue('bookType', bookTypes[0] || 'LIVRO', { shouldValidate: true });
+
       if (scannerSettings.targetField === 'isbn' || (isIsbn && scannerSettings.targetField === 'both')) {
-        setValue('isbn', code);
-        if (!watch('code')) setValue('code', code);
+        setValue('isbn', code, { shouldValidate: true });
+        if (!watch('code')) setValue('code', code, { shouldValidate: true });
         showSuccess(`ISBN "${code}" lido pelo leitor!`);
 
         if (scannerSettings.autoFetchBookDetails) {
           await handleFetchIsbnData(code);
         }
       } else {
-        setValue('code', code);
-        if (isIsbn && !watch('isbn')) {
-          setValue('isbn', code);
-        }
-        showSuccess(`Código "${code}" capturado pelo leitor!`);
+        if (isIsbn) {
+          setValue('isbn', code, { shouldValidate: true });
+          if (!watch('code')) setValue('code', code, { shouldValidate: true });
+          showSuccess(`ISBN "${code}" capturado pelo leitor!`);
 
-        if (isIsbn && scannerSettings.autoFetchBookDetails) {
-          await handleFetchIsbnData(code);
+          if (scannerSettings.autoFetchBookDetails) {
+            await handleFetchIsbnData(code);
+          }
+        } else {
+          setValue('code', code, { shouldValidate: true });
+          showSuccess(`Código "${code}" capturado pelo leitor!`);
+          showInfo(`Código interno lido. Preencha os dados manualmente ou bipe o ISBN.`);
         }
       }
     },
   });
 
+  const onInvalid = (formErrors: any) => {
+    console.warn('[BookForm] Erros de validação no formulário:', formErrors);
+    const missing: string[] = [];
+    if (formErrors.code) missing.push('Código');
+    if (formErrors.title) missing.push('Título');
+    if (formErrors.author) missing.push('Autor');
+    if (formErrors.publisher) missing.push('Editora');
+    if (formErrors.category) missing.push('Categoria');
+    if (formErrors.bookType) missing.push('Tipo');
+    if (formErrors.shelf) missing.push('Prateleira');
+    if (formErrors.quantity) missing.push('Quantidade');
+
+    showError(`Preencha os campos obrigatórios: ${missing.join(', ')}`);
+  };
+
   const handleFormSubmit = (data: BookFormData) => {
     const transformedData = {
       ...data,
-      code: data.code.toUpperCase(),
-      title: data.title.toUpperCase(),
-      author: data.author.toUpperCase(),
-      publisher: data.publisher.toUpperCase(),
-      shelf: data.shelf.toUpperCase(),
-      bookType: data.bookType.toUpperCase(),
+      code: (data.code || '').trim().toUpperCase(),
+      isbn: (data.isbn || '').trim(),
+      title: (data.title || '').trim().toUpperCase(),
+      author: (data.author || 'AUTOR NÃO INFORMADO').trim().toUpperCase(),
+      publisher: (data.publisher || 'N/A').trim().toUpperCase(),
+      shelf: (data.shelf || shelves[0] || 'PRATELEIRA 1').trim().toUpperCase(),
+      category: (data.category || categories[0] || 'LITERATURA').trim().toUpperCase(),
+      bookType: (data.bookType || bookTypes[0] || 'LIVRO').trim().toUpperCase(),
+      quantity: Number(data.quantity) || 1,
     };
     onSubmit(transformedData);
     closeDialog();
@@ -168,7 +215,7 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
     <DialogContent className="sm:max-w-[480px]">
       <DialogHeader>
         <div className="flex items-center justify-between pr-4">
-          <DialogTitle>{book ? 'Editar Livro' : 'Adicionar Livro'}</DialogTitle>
+          <DialogTitle>{isEditMode ? 'Editar Livro' : 'Adicionar Livro'}</DialogTitle>
           {scannerSettings.enabled && (
             <Badge variant="outline" className="text-[11px] gap-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-300">
               <Barcode className="h-3 w-3" />
@@ -178,7 +225,31 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
         </div>
       </DialogHeader>
 
-      <form onSubmit={handleSubmit(handleFormSubmit)}>
+      <form onSubmit={handleSubmit(handleFormSubmit, onInvalid)}>
+        {isProvisional && (
+          <div className="p-3 my-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between gap-2 shadow-sm">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>
+                <strong>Dados provisórios:</strong> digite ou bipe o ISBN para buscar na internet, ou preencha manualmente.
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-[11px] px-2.5 shrink-0 border-amber-400/50 hover:bg-amber-500/20 font-medium"
+              onClick={() => {
+                setValue('title', '');
+                setValue('author', '');
+                setValue('publisher', '');
+              }}
+            >
+              Limpar Campos
+            </Button>
+          </div>
+        )}
+
         <div className="grid gap-3 py-3">
           {/* Código do Livro */}
           <div className="grid grid-cols-4 items-center gap-4">
@@ -327,7 +398,7 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
             Cancelar
           </Button>
           <Button type="submit">
-            {book ? 'Salvar Alterações' : 'Cadastrar Livro'}
+            {isEditMode ? 'Salvar Alterações' : 'Cadastrar Livro'}
           </Button>
         </div>
       </form>

@@ -48,6 +48,7 @@ export const defaultSettings: AppSettings = {
     targetField: 'code',
     autoOpenAddModal: true,
     autoFetchBookDetails: true,
+    autoSaveWhenFound: true,
   },
 };
 

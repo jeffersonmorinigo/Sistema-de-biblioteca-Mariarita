@@ -102,6 +102,20 @@ export const BarcodeScannerConfig: React.FC = () => {
     });
   };
 
+  const handleToggleAutoSave = async (checked: boolean) => {
+    await updateSettings({
+      barcodeScanner: {
+        ...scannerSettings,
+        autoSaveWhenFound: checked,
+      },
+    });
+    showSuccess(
+      checked
+        ? 'Cadastro automático ativado ao encontrar ISBN na internet!'
+        : 'Cadastro automático desativado. O formulário será aberto para confirmação.'
+    );
+  };
+
   return (
     <Card className="border-primary/20 shadow-sm">
       <CardHeader>
@@ -161,7 +175,7 @@ export const BarcodeScannerConfig: React.FC = () => {
               <div>
                 <Label className="font-semibold text-sm">Abrir Cadastro ao Bipar</Label>
                 <p className="text-xs text-muted-foreground">
-                  Na tela de livros, ao bipar um livro novo, abre o formulário preenchido.
+                  Na tela de livros, ao bipar um código não cadastrado, abre o formulário.
                 </p>
               </div>
               <Switch
@@ -178,13 +192,30 @@ export const BarcodeScannerConfig: React.FC = () => {
                   Preenchimento Automático via Internet
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Se for ISBN comercial, busca título, autor e editora sozinho.
+                  Se for ISBN comercial, busca título, autor, editora, categoria e tipo online.
                 </p>
               </div>
               <Switch
                 checked={scannerSettings.autoFetchBookDetails}
                 onCheckedChange={handleToggleAutoFetch}
                 disabled={!scannerSettings.enabled}
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t">
+              <div>
+                <Label className="font-semibold text-sm flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Registrar Direto ao Achar ISBN
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Se achar na internet, grava na hora. Se não achar, abre para digitação manual de tudo.
+                </p>
+              </div>
+              <Switch
+                checked={scannerSettings.autoSaveWhenFound ?? true}
+                onCheckedChange={handleToggleAutoSave}
+                disabled={!scannerSettings.enabled || !scannerSettings.autoFetchBookDetails}
               />
             </div>
           </div>

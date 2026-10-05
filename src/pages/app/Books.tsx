@@ -31,9 +31,8 @@ import { normalizeString } from '@/utils/stringUtils';
 import BookForm, { BookFormData } from '@/components/BookForm';
 import ImportBooksDialog from '@/components/ImportBooksDialog';
 import { showSuccess, showError, showInfo } from '@/utils/toast';
-import { useSettings } from '@/hooks/useSettings';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
-import { isLikelyIsbn, fetchBookDetailsByIsbn } from '@/lib/isbnService';
+import { isLikelyIsbn, fetchBookDetailsByIsbn, matchSystemCategory, matchSystemBookType } from '@/lib/isbnService';
 import { Badge } from '@/components/ui/badge';
 import { CameraBarcodeScanner } from '@/components/CameraBarcodeScanner';
 import { MobileCollectorDialog } from '@/components/MobileCollectorDialog';
@@ -44,9 +43,9 @@ const BooksPage = () => {
   const { data: books, add: addBook, update: updateBook, remove: removeBook } = useFirestore<Book>('books');
   const { data: loans } = useFirestore<Loan>('loans');
   const { settings } = useSettings();
-  const categories = settings.book_categories;
-  const shelves = settings.book_shelves;
-  const bookTypes = settings.book_types;
+  const categories = settings.book_categories || ['LITERATURA', 'DIDÁTICO', 'INFANTIL', 'GERAL'];
+  const shelves = settings.book_shelves || ['PRATELEIRA 1', 'PRATELEIRA 2', 'PRATELEIRA 3', 'GERAL'];
+  const bookTypes = settings.book_types || ['LIVRO', 'REVISTA', 'GIBI'];
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -84,33 +83,76 @@ const BooksPage = () => {
         details = await fetchBookDetailsByIsbn(code);
       }
 
-      // Tenta associar categoria encontrada com as categorias do sistema
-      let matchedCategory = categories[0] || 'GERAL';
-      if (details?.category) {
-        const catUpper = details.category.toUpperCase();
-        const found = categories.find((c) => catUpper.includes(c) || c.includes(catUpper));
-        if (found) matchedCategory = found;
+      // Se achou dados online
+      if (details?.title) {
+        const matchedCategory = matchSystemCategory(details.category, categories) || categories[0] || 'LITERATURA';
+        const matchedType = matchSystemBookType(details.bookType, bookTypes) || bookTypes[0] || 'LIVRO';
+        const bookCode = (scannerSettings.targetField === 'code' ? code : (isIsbn ? code : '')).toUpperCase() || code.toUpperCase();
+        const bookIsbn = isIsbn ? code : (details.isbn || '');
+        const bookTitle = details.title.toUpperCase();
+        const bookAuthor = (details.author || 'AUTOR NÃO INFORMADO').trim().toUpperCase() || 'AUTOR NÃO INFORMADO';
+        const bookPublisher = (details.publisher || 'N/A').trim().toUpperCase() || 'N/A';
+        const bookShelf = shelves[0] || 'PRATELEIRA 1';
+
+        // Se configurado para salvar direto ao achar o ISBN online
+        if (scannerSettings.autoSaveWhenFound ?? true) {
+          try {
+            await addBook({
+              code: bookCode,
+              isbn: bookIsbn,
+              title: bookTitle,
+              author: bookAuthor,
+              publisher: bookPublisher,
+              shelf: bookShelf,
+              category: matchedCategory,
+              bookType: matchedType,
+              quantity: 1,
+            });
+            showSuccess(`Livro "${details.title}" cadastrado com sucesso!`);
+            return;
+          } catch (err) {
+            console.error('Erro ao cadastrar livro automaticamente:', err);
+            showError('Erro ao registrar livro automaticamente. Abrindo formulário...');
+          }
+        }
+
+        // Se não for para salvar direto, abre o formulário preenchido para confirmação
+        setSelectedBook({
+          id: '',
+          code: bookCode,
+          isbn: bookIsbn,
+          title: bookTitle,
+          author: bookAuthor,
+          publisher: bookPublisher,
+          shelf: bookShelf,
+          category: matchedCategory,
+          bookType: matchedType,
+          quantity: 1,
+        });
+        setIsAddDialogOpen(true);
+        showSuccess(`Livro "${details.title}" encontrado! Confirme os dados e salve.`);
+        return;
       }
 
+      // Se NÃO achou online ou NÃO reconhece o ISBN: tudo manual!
       setSelectedBook({
         id: '',
-        code: scannerSettings.targetField === 'code' ? code : (isIsbn ? code : ''),
+        code: code.toUpperCase(),
         isbn: isIsbn ? code : '',
-        title: details?.title ? details.title.toUpperCase() : '',
-        author: details?.author ? details.author.toUpperCase() : '',
-        publisher: details?.publisher ? details.publisher.toUpperCase() : '',
-        shelf: shelves[0] || 'N/A',
-        category: matchedCategory,
+        title: '',
+        author: '',
+        publisher: '',
+        shelf: shelves[0] || 'PRATELEIRA 1',
+        category: categories[0] || 'GERAL',
         bookType: bookTypes[0] || 'LIVRO',
         quantity: 1,
       });
 
       setIsAddDialogOpen(true);
-
-      if (details?.title) {
-        showSuccess(`Livro "${details.title}" encontrado! Confirme os dados e salve.`);
+      if (isIsbn) {
+        showInfo(`ISBN "${code}" lido, mas não localizado online. Preencha os campos manualmente.`);
       } else {
-        showInfo(`Código "${code}" lido! Preencha os dados.`);
+        showInfo(`Código "${code}" lido (não é ISBN). Preencha os dados do livro manualmente.`);
       }
     } else {
       setSearchTerm(code);
@@ -150,29 +192,56 @@ const BooksPage = () => {
   }, [books, searchTerm]);
 
   const handleAddBook = async (data: BookFormData) => {
-    if (books.some(b => b.code === data.code.toUpperCase())) {
-      showError('Um livro com este código já existe.');
-      return;
+    try {
+      if (books.some(b => b.code && b.code.toUpperCase() === data.code.toUpperCase())) {
+        showError(`Um livro com o código "${data.code}" já existe no acervo.`);
+        return;
+      }
+      await addBook({
+        code: data.code.toUpperCase(),
+        isbn: data.isbn || '',
+        title: data.title.toUpperCase(),
+        author: data.author.toUpperCase(),
+        publisher: data.publisher.toUpperCase(),
+        shelf: (data.shelf || shelves[0] || 'PRATELEIRA 1').toUpperCase(),
+        category: (data.category || categories[0] || 'LITERATURA').toUpperCase(),
+        bookType: (data.bookType || bookTypes[0] || 'LIVRO').toUpperCase(),
+        quantity: Number(data.quantity) || 1,
+      });
+      showSuccess(`Livro "${data.title}" adicionado com sucesso!`);
+      setSelectedBook(null);
+      setIsAddDialogOpen(false);
+    } catch (err: any) {
+      console.error('Erro ao adicionar livro:', err);
+      showError('Erro ao cadastrar livro no sistema.');
     }
-    await addBook({
-      code: data.code,
-      isbn: data.isbn,
-      title: data.title,
-      author: data.author,
-      publisher: data.publisher,
-      shelf: data.shelf || 'N/A',
-      category: data.category,
-      bookType: data.bookType,
-      quantity: data.quantity,
-    });
-    showSuccess('Livro adicionado com sucesso!');
   };
 
   const handleEditBook = async (data: BookFormData) => {
-    if (!selectedBook) return;
-    await updateBook(selectedBook.id, data);
-    showSuccess('Livro atualizado com sucesso!');
-    setSelectedBook(null);
+    try {
+      if (!selectedBook?.id) {
+        // Failsafe: se não tem ID, é novo cadastro!
+        await handleAddBook(data);
+        return;
+      }
+      await updateBook(selectedBook.id, {
+        code: data.code.toUpperCase(),
+        isbn: data.isbn || '',
+        title: data.title.toUpperCase(),
+        author: data.author.toUpperCase(),
+        publisher: data.publisher.toUpperCase(),
+        shelf: (data.shelf || shelves[0] || 'PRATELEIRA 1').toUpperCase(),
+        category: (data.category || categories[0] || 'LITERATURA').toUpperCase(),
+        bookType: (data.bookType || bookTypes[0] || 'LIVRO').toUpperCase(),
+        quantity: Number(data.quantity) || 1,
+      });
+      showSuccess('Livro atualizado com sucesso!');
+      setSelectedBook(null);
+      setIsAddDialogOpen(false);
+    } catch (err: any) {
+      console.error('Erro ao atualizar livro:', err);
+      showError('Erro ao atualizar livro.');
+    }
   };
 
   const handleDeleteBook = async (bookId: string) => {
@@ -292,10 +361,13 @@ const BooksPage = () => {
               </Button>
             </DialogTrigger>
             <BookForm
-              key={selectedBook?.id || 'new'}
+              key={selectedBook?.id || selectedBook?.code || 'new'}
               book={selectedBook}
-              onSubmit={selectedBook ? handleEditBook : handleAddBook}
-              closeDialog={() => setIsAddDialogOpen(false)}
+              onSubmit={selectedBook?.id ? handleEditBook : handleAddBook}
+              closeDialog={() => {
+                setIsAddDialogOpen(false);
+                setSelectedBook(null);
+              }}
               categories={categories}
               shelves={shelves}
               bookTypes={bookTypes}

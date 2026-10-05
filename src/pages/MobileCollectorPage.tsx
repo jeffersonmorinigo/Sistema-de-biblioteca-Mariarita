@@ -3,12 +3,20 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useFirestore } from '@/hooks/useFirestore';
 import { useSettings } from '@/hooks/useSettings';
 import { Book } from '@/lib/types';
-import { fetchBookDetailsByIsbn, isLikelyIsbn } from '@/lib/isbnService';
+import { fetchBookDetailsByIsbn, isLikelyIsbn, cleanIsbn, matchSystemCategory, matchSystemBookType } from '@/lib/isbnService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import {
   Camera,
   Flashlight,
@@ -24,6 +32,9 @@ import {
   Plus,
   Keyboard,
   Search,
+  Loader2,
+  Edit3,
+  ZoomIn,
 } from 'lucide-react';
 import { showSuccess, showError, showInfo } from '@/utils/toast';
 
@@ -59,6 +70,8 @@ export const MobileCollectorPage: React.FC = () => {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isInsecureHttp, setIsInsecureHttp] = useState(false);
   const [scannerMode, setScannerMode] = useState<'native' | 'fallback' | null>(null);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [zoomCapabilities, setZoomCapabilities] = useState<{ min: number; max: number; step: number } | null>(null);
 
   // Estados de Leitura e Cadastro
   const [isLoadingBook, setIsLoadingBook] = useState(false);
@@ -70,6 +83,21 @@ export const MobileCollectorPage: React.FC = () => {
   // Entrada manual
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualIsbn, setManualIsbn] = useState('');
+
+  // Modal de Preenchimento Manual quando o livro/ISBN não for reconhecido online
+  const [manualBookModal, setManualBookModal] = useState<{
+    isOpen: boolean;
+    code: string;
+    isbn: string;
+    title: string;
+    author: string;
+    publisher: string;
+    category: string;
+    bookType: string;
+    shelf: string;
+    quantity: number;
+    isSearchingOnline?: boolean;
+  } | null>(null);
 
   // Debug feedback
   const [scanStatus, setScanStatus] = useState<string>('');
@@ -159,22 +187,24 @@ export const MobileCollectorPage: React.FC = () => {
   // === NATIVE BarcodeDetector SCANNER (Chrome Android 83+) ===
   const startNativeScanner = async () => {
     setCameraError(null);
-    setScanStatus('Iniciando câmera nativa...');
+    setScanStatus('Iniciando câmera de alta definição...');
 
     try {
-      // Tenta câmera traseira com exact (forçado), se falhar tenta sem exact
+      const constraints: MediaStreamConstraints = {
+        video: {
+          facingMode: selectedCameraId ? undefined : { ideal: 'environment' },
+          deviceId: selectedCameraId ? { exact: selectedCameraId } : undefined,
+          width: { ideal: 1920, min: 1280 },
+          height: { ideal: 1080, min: 720 },
+        },
+        audio: false,
+      };
+
       let stream: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { exact: 'environment' },
-            width: { ideal: 1920, min: 1280 },
-            height: { ideal: 1080, min: 720 },
-          },
-          audio: false,
-        });
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (exactErr) {
-        // Fallback: sem 'exact' para celulares que não suportam
+        // Fallback: resolução mais flexível para celulares com restrições
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: 'environment',
@@ -206,21 +236,38 @@ export const MobileCollectorPage: React.FC = () => {
 
       await video.play();
 
-      // Cria canvas offscreen para captura de frames
-      const canvas = document.createElement('canvas');
-      canvasRef.current = canvas;
-
-      // Cria detector
-      const detector = new window.BarcodeDetector!({
-        formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code'],
-      });
-
-      // Checa torch
+      // Configurações avançadas da lente (foco contínuo e zoom macro)
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
-        const caps = videoTrack.getCapabilities?.() as any;
+        const caps = (videoTrack.getCapabilities ? videoTrack.getCapabilities() : {}) as any;
         if (caps?.torch) {
           setHasTorch(true);
+        }
+
+        const advancedList: any[] = [];
+        if (caps?.focusMode?.includes('continuous')) {
+          advancedList.push({ focusMode: 'continuous' });
+        }
+
+        // Suporte a zoom: afasta o celular para evitar o limite macro e mantém foco nítido
+        if (caps?.zoom) {
+          const min = caps.zoom.min || 1;
+          const max = caps.zoom.max || 5;
+          const step = caps.zoom.step || 0.1;
+          setZoomCapabilities({ min, max, step });
+
+          // Zoom inicial de 1.3x para leitura confortável a 20cm
+          const initialZoom = Math.min(Math.max(1.3, min), Math.min(2.0, max));
+          advancedList.push({ zoom: initialZoom });
+          setZoomLevel(initialZoom);
+        }
+
+        if (advancedList.length > 0) {
+          try {
+            await videoTrack.applyConstraints({ advanced: advancedList });
+          } catch (e) {
+            console.warn('Configuração avançada de foco/zoom não suportada:', e);
+          }
         }
 
         // Lista câmeras
@@ -235,11 +282,20 @@ export const MobileCollectorPage: React.FC = () => {
         } catch (e) {}
       }
 
+      // Cria detector nativo
+      const detector = new window.BarcodeDetector!({
+        formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code'],
+      });
+
+      // Canvas offscreen para fallback se detector direto no elemento de vídeo falhar
+      const canvas = document.createElement('canvas');
+      canvasRef.current = canvas;
+
       setScannerMode('native');
       setIsScanning(true);
-      setScanStatus('📷 Scanner nativo ativo — aponte para o código de barras');
+      setScanStatus('📷 Foco ativo — mantenha o livro a ~20cm');
 
-      // Loop de escaneamento: 15 FPS
+      // Loop de detecção ultra-rápido (zero-copy GPU acelerado)
       const scanLoop = async () => {
         if (!videoRef.current || videoRef.current.readyState < 2) {
           nativeScanLoopRef.current = requestAnimationFrame(scanLoop);
@@ -247,33 +303,49 @@ export const MobileCollectorPage: React.FC = () => {
         }
 
         try {
-          const vw = videoRef.current.videoWidth;
-          const vh = videoRef.current.videoHeight;
+          if (!isProcessingRef.current) {
+            let barcodes: Array<{ rawValue: string; format: string }> = [];
 
-          if (vw > 0 && vh > 0) {
-            canvas.width = vw;
-            canvas.height = vh;
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            if (ctx) {
-              ctx.drawImage(videoRef.current, 0, 0, vw, vh);
-
-              if (!isProcessingRef.current) {
-                const barcodes = await detector.detect(canvas);
-                if (barcodes.length > 0 && !isProcessingRef.current) {
-                  const code = barcodes[0].rawValue;
-                  if (code) {
-                    await handleScanResult(code);
-                  }
+            // 1. Tenta detecção direta no <video> (rápido e zero-copy)
+            try {
+              barcodes = await detector.detect(videoRef.current);
+            } catch (videoDetectErr) {
+              // 2. Fallback com canvas offscreen
+              const vw = videoRef.current.videoWidth;
+              const vh = videoRef.current.videoHeight;
+              if (vw > 0 && vh > 0) {
+                canvas.width = vw;
+                canvas.height = vh;
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                if (ctx) {
+                  ctx.drawImage(videoRef.current, 0, 0, vw, vh);
+                  barcodes = await detector.detect(canvas);
                 }
+              }
+            }
+
+            if (barcodes && barcodes.length > 0 && !isProcessingRef.current) {
+              // Prioriza códigos no formato EAN-13 ou que se pareçam com ISBN
+              const sorted = [...barcodes].sort((a, b) => {
+                const aIsbn = isLikelyIsbn(a.rawValue) || a.format === 'ean_13';
+                const bIsbn = isLikelyIsbn(b.rawValue) || b.format === 'ean_13';
+                if (aIsbn && !bIsbn) return -1;
+                if (!aIsbn && bIsbn) return 1;
+                return 0;
+              });
+
+              const selectedCode = sorted[0]?.rawValue?.trim();
+              if (selectedCode) {
+                await handleScanResult(selectedCode);
               }
             }
           }
         } catch (e) {
-          // continua tentando
+          // continua tentando nos próximos frames
         }
 
-        // ~15fps throttle
-        await new Promise((r) => setTimeout(r, 66));
+        // Throttle balanceado (~35ms = ~28 FPS)
+        await new Promise((r) => setTimeout(r, 35));
         nativeScanLoopRef.current = requestAnimationFrame(scanLoop);
       };
 
@@ -325,27 +397,31 @@ export const MobileCollectorPage: React.FC = () => {
       scannerRef.current = html5QrCode;
 
       const config = {
-        fps: 20,
+        fps: 25,
         qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-          // Área de scan maior para melhor detecção
-          return {
-            width: Math.floor(viewfinderWidth * 0.92),
-            height: Math.floor(viewfinderHeight * 0.60),
-          };
+          // Formato retangular otimizado para o código de barras ISBN do livro (~2.4 : 1)
+          const w = Math.floor(Math.min(viewfinderWidth * 0.90, 420));
+          const h = Math.floor(w * 0.42);
+          return { width: w, height: h };
         },
-        aspectRatio: 1.777,  // 16:9 para melhor resolução
+        aspectRatio: 1.777, // 16:9 widescreen para maior nitidez
         disableFlip: false,
         experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true,  // usa API nativa se disponível internamente
+          useBarCodeDetectorIfSupported: true,
         },
       };
 
       const cameraSource = selectedCameraId
         ? { deviceId: { exact: selectedCameraId } }
-        : { facingMode: { exact: 'environment' } };
+        : {
+            facingMode: 'environment',
+            width: { ideal: 1920, min: 1280 },
+            height: { ideal: 1080, min: 720 },
+            focusMode: 'continuous',
+          };
 
       await html5QrCode.start(
-        cameraSource,
+        cameraSource as any,
         config as any,
         async (decodedText) => {
           if (!isProcessingRef.current) {
@@ -359,11 +435,26 @@ export const MobileCollectorPage: React.FC = () => {
       setIsScanning(true);
       setScanStatus('📷 Scanner ativo — aponte para o código de barras');
 
-      // Checa lanterna
+      // Checa lanterna e zoom
       try {
         const runningTrack = (html5QrCode as any).getRunningTrackCapabilities?.();
-        if (runningTrack && runningTrack.torch) {
-          setHasTorch(true);
+        if (runningTrack) {
+          if (runningTrack.torch) {
+            setHasTorch(true);
+          }
+          if (runningTrack.zoom) {
+            const min = runningTrack.zoom.min || 1;
+            const max = runningTrack.zoom.max || 5;
+            const step = runningTrack.zoom.step || 0.1;
+            setZoomCapabilities({ min, max, step });
+            const initialZoom = Math.min(Math.max(1.3, min), Math.min(2.0, max));
+            try {
+              await (html5QrCode as any).applyVideoConstraints({
+                advanced: [{ zoom: initialZoom }],
+              });
+              setZoomLevel(initialZoom);
+            } catch (e) {}
+          }
         }
       } catch (e) {}
     } catch (err: any) {
@@ -383,18 +474,16 @@ export const MobileCollectorPage: React.FC = () => {
     // Tenta usar BarcodeDetector nativo primeiro (Chrome Android 83+)
     if (typeof window !== 'undefined' && window.BarcodeDetector) {
       try {
-        // Verifica se suporta os formatos que precisamos
         const supported = await (window.BarcodeDetector as any).getSupportedFormats?.();
         if (supported && supported.includes('ean_13')) {
-          setScanStatus('Usando scanner nativo de alta performance');
+          setScanStatus('Usando scanner nativo acelerado por GPU');
           await startNativeScanner();
           return;
         }
       } catch (e) {
-        // BarcodeDetector existe mas não suporta, fallback
+        // Fallback
       }
 
-      // Tenta mesmo sem verificar formatos
       try {
         await startNativeScanner();
         return;
@@ -448,6 +537,8 @@ export const MobileCollectorPage: React.FC = () => {
     setIsScanning(false);
     setTorchEnabled(false);
     setHasTorch(false);
+    setZoomCapabilities(null);
+    setZoomLevel(1);
     setScannerMode(null);
     setScanStatus('');
   };
@@ -468,6 +559,62 @@ export const MobileCollectorPage: React.FC = () => {
         setTorchEnabled(nextState);
       }
     } catch (e) {}
+  };
+
+  // === ZOOM TOGGLE (1x -> 2x -> 3x -> 1x) ===
+  const toggleZoom = async () => {
+    const track =
+      streamRef.current?.getVideoTracks()[0] ||
+      (scannerRef.current as any)?.getRunningTrack?.() ||
+      (scannerRef.current as any)?._localMediaStream?.getVideoTracks?.()[0];
+
+    const min = zoomCapabilities?.min || 1;
+    const max = zoomCapabilities?.max || 4;
+
+    let nextZoom = 1;
+    if (zoomLevel < 1.7) {
+      nextZoom = Math.min(2.0, max);
+    } else if (zoomLevel < 2.7 && max >= 2.5) {
+      nextZoom = Math.min(3.0, max);
+    } else {
+      nextZoom = min;
+    }
+
+    try {
+      if (track) {
+        await track.applyConstraints({ advanced: [{ zoom: nextZoom } as any] });
+      } else if (scannerRef.current) {
+        await (scannerRef.current as any).applyVideoConstraints({
+          advanced: [{ zoom: nextZoom }],
+        });
+      }
+      setZoomLevel(nextZoom);
+      setScanStatus(`🔍 Zoom ${nextZoom.toFixed(1)}x ativado`);
+      triggerHaptic();
+    } catch (e) {
+      console.warn('Erro ao aplicar zoom:', e);
+    }
+  };
+
+  // === TAP TO FOCUS ===
+  const handleTapToFocus = async () => {
+    triggerHaptic();
+    setScanStatus('🎯 Ajustando foco automático...');
+    try {
+      const track =
+        streamRef.current?.getVideoTracks()[0] ||
+        (scannerRef.current as any)?.getRunningTrack?.() ||
+        (scannerRef.current as any)?._localMediaStream?.getVideoTracks?.()[0];
+
+      if (track) {
+        await track.applyConstraints({
+          advanced: [{ focusMode: 'continuous' } as any],
+        });
+      }
+    } catch (e) {}
+    setTimeout(() => {
+      setScanStatus('📷 Foco nítido ativo — mantenha o livro a ~20cm');
+    }, 1200);
   };
 
   // === SWITCH CAMERA ===
@@ -531,56 +678,74 @@ export const MobileCollectorPage: React.FC = () => {
       }
 
       const hasOnlineTitle = Boolean(fetchedData?.title && fetchedData.title.trim().length > 0);
-      const title = hasOnlineTitle
-        ? fetchedData.title.trim().toUpperCase()
-        : `LIVRO CÓDIGO ${scannedCode}`;
-      const author = fetchedData?.author && fetchedData.author.trim().length > 0
-        ? fetchedData.author.trim().toUpperCase()
-        : (hasOnlineTitle ? 'AUTOR NÃO INFORMADO' : 'A DEFINIR');
-      const publisher = fetchedData?.publisher && fetchedData.publisher.trim().length > 0
-        ? fetchedData.publisher.trim().toUpperCase()
-        : 'N/A';
 
-      const newBookData: Omit<Book, 'id'> = {
-        code: scannedCode.toUpperCase(),
-        isbn: isIsbn ? scannedCode : '',
-        title,
-        author,
-        publisher,
-        shelf: selectedShelf.toUpperCase(),
-        category: selectedCategory.toUpperCase(),
-        bookType: selectedType.toUpperCase(),
-        quantity: 1,
-      };
+      // CASO 1: ACHAR O LIVRO PELO ISBN NA INTERNET
+      if (hasOnlineTitle) {
+        const matchedCategory = matchSystemCategory(fetchedData.category, categories) || selectedCategory;
+        const matchedType = matchSystemBookType(fetchedData.bookType, bookTypes) || selectedType;
+        const title = fetchedData.title.trim().toUpperCase();
+        const author = (fetchedData?.author && fetchedData.author.trim().length > 0)
+          ? fetchedData.author.trim().toUpperCase()
+          : 'AUTOR NÃO INFORMADO';
+        const publisher = (fetchedData?.publisher && fetchedData.publisher.trim().length > 0)
+          ? fetchedData.publisher.trim().toUpperCase()
+          : 'N/A';
 
-      setLastScannedBook(newBookData);
+        const newBookData: Omit<Book, 'id'> = {
+          code: scannedCode.toUpperCase(),
+          isbn: isIsbn ? scannedCode : (fetchedData.isbn || ''),
+          title,
+          author,
+          publisher,
+          shelf: selectedShelf.toUpperCase(),
+          category: matchedCategory.toUpperCase(),
+          bookType: matchedType.toUpperCase(),
+          quantity: 1,
+        };
 
-      // 3. Salva automaticamente no banco (Modo Rápido)
-      if (autoSave) {
-        try {
-          await addBook(newBookData);
-          setSessionCount((prev) => prev + 1);
-          setRecentBooks((prev) => [
-            {
-              title,
-              code: scannedCode,
-              time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-            },
-            ...prev.slice(0, 4),
-          ]);
-          if (hasOnlineTitle) {
+        setLastScannedBook(newBookData);
+
+        // Se o modo automático estiver ativo, salva direto com todos os dados
+        if (autoSave) {
+          try {
+            await addBook(newBookData);
+            setSessionCount((prev) => prev + 1);
+            setRecentBooks((prev) => [
+              {
+                title,
+                code: scannedCode,
+                time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+              },
+              ...prev.slice(0, 4),
+            ]);
             showSuccess(`"${title}" cadastrado com sucesso!`);
-          } else {
-            showSuccess(`Código ${scannedCode} cadastrado com sucesso!`);
+          } catch (err) {
+            showError('Erro ao cadastrar livro no banco.');
           }
-        } catch (err) {
-          showError('Erro ao cadastrar livro no banco.');
+        } else {
+          showSuccess(`Dados de "${title}" localizados! Toque em Salvar.`);
         }
       } else {
-        if (hasOnlineTitle) {
-          showSuccess(`Dados de "${title}" localizados! Toque em Salvar.`);
+        // CASO 2: NÃO ACHAR OU NÃO RECONHECER O ISBN -> TUDO MANUAL!
+        // Não salva dados provisórios como "LIVRO CÓDIGO" e "A DEFINIR"
+        stopCamera();
+        setManualBookModal({
+          isOpen: true,
+          code: scannedCode.toUpperCase(),
+          isbn: isIsbn ? scannedCode : '',
+          title: '',
+          author: '',
+          publisher: '',
+          category: selectedCategory.toUpperCase(),
+          bookType: selectedType.toUpperCase(),
+          shelf: selectedShelf.toUpperCase(),
+          quantity: 1,
+        });
+
+        if (isIsbn) {
+          showInfo(`ISBN "${scannedCode}" não localizado na internet. Preencha os campos manualmente.`);
         } else {
-          showInfo(`Código ${scannedCode} lido! Toque em Salvar.`);
+          showInfo(`Código "${scannedCode}" lido (não é ISBN). Preencha os dados manualmente.`);
         }
       }
     } catch (err: any) {
@@ -594,6 +759,93 @@ export const MobileCollectorPage: React.FC = () => {
         isProcessingRef.current = false;
       }, 1500);
     }
+  };
+
+  // === BUSCA ISBN ONLINE A PARTIR DO FORMULÁRIO MANUAL ===
+  const handleManualModalSearchIsbn = async () => {
+    if (!manualBookModal?.isbn?.trim()) {
+      showError('Informe um ISBN para consultar online.');
+      return;
+    }
+    const clean = cleanIsbn(manualBookModal.isbn);
+    setManualBookModal((prev) => (prev ? { ...prev, isSearchingOnline: true } : null));
+    try {
+      const details = await fetchBookDetailsByIsbn(clean);
+      if (details?.title) {
+        const matchedCat = matchSystemCategory(details.category, categories);
+        const matchedTyp = matchSystemBookType(details.bookType, bookTypes);
+        setManualBookModal((prev) =>
+          prev
+            ? {
+                ...prev,
+                title: details.title!.toUpperCase(),
+                author: (details.author || '').toUpperCase(),
+                publisher: (details.publisher || '').toUpperCase(),
+                category: matchedCat,
+                bookType: matchedTyp,
+                isSearchingOnline: false,
+              }
+            : null
+        );
+        showSuccess(`Dados de "${details.title}" localizados online!`);
+      } else {
+        showInfo('ISBN não localizado na internet. Preencha os dados manualmente.');
+        setManualBookModal((prev) => (prev ? { ...prev, isSearchingOnline: false } : null));
+      }
+    } catch (e) {
+      showError('Erro ao buscar ISBN online.');
+      setManualBookModal((prev) => (prev ? { ...prev, isSearchingOnline: false } : null));
+    }
+  };
+
+  // === SALVAR LIVRO DO PREENCHIMENTO MANUAL ===
+  const handleSaveManualBook = async () => {
+    if (!manualBookModal) return;
+    if (!manualBookModal.title.trim()) {
+      showError('O título do livro é obrigatório.');
+      return;
+    }
+    if (!manualBookModal.author.trim()) {
+      showError('O autor do livro é obrigatório.');
+      return;
+    }
+
+    const bookData: Omit<Book, 'id'> = {
+      code: (manualBookModal.code || '').trim().toUpperCase(),
+      isbn: (manualBookModal.isbn || '').trim(),
+      title: manualBookModal.title.trim().toUpperCase(),
+      author: manualBookModal.author.trim().toUpperCase(),
+      publisher: (manualBookModal.publisher || 'N/A').trim().toUpperCase(),
+      shelf: (manualBookModal.shelf || selectedShelf).toUpperCase(),
+      category: (manualBookModal.category || selectedCategory).toUpperCase(),
+      bookType: (manualBookModal.bookType || selectedType).toUpperCase(),
+      quantity: manualBookModal.quantity || 1,
+    };
+
+    try {
+      await addBook(bookData);
+      setSessionCount((prev) => prev + 1);
+      setRecentBooks((prev) => [
+        {
+          title: bookData.title,
+          code: bookData.code || bookData.isbn,
+          time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        },
+        ...prev.slice(0, 4),
+      ]);
+      setLastScannedBook(bookData);
+      showSuccess(`Livro "${bookData.title}" cadastrado com sucesso!`);
+      setManualBookModal(null);
+      // Retoma câmera automaticamente
+      startCamera();
+    } catch (err) {
+      showError('Erro ao salvar livro no banco.');
+    }
+  };
+
+  const handleCancelManualModal = () => {
+    setManualBookModal(null);
+    startCamera();
   };
 
   // === MANUAL SAVE ===
@@ -758,14 +1010,20 @@ export const MobileCollectorPage: React.FC = () => {
 
       {/* Área da Câmera do Celular */}
       <main className="p-3 flex-1 flex flex-col gap-3">
-        <div className="relative w-full rounded-2xl overflow-hidden bg-black border border-slate-800 aspect-[4/3] flex items-center justify-center shadow-lg">
+        <div
+          onClick={isScanning ? handleTapToFocus : undefined}
+          title={isScanning ? 'Toque para focar a lente' : undefined}
+          className={`relative w-full rounded-2xl overflow-hidden bg-black border border-slate-800 aspect-[4/3] flex items-center justify-center shadow-lg transition-all ${
+            isScanning ? 'cursor-pointer select-none active:brightness-110' : ''
+          }`}
+        >
           {/* Container do Scanner (nativo ou html5-qrcode) */}
           <div id={containerId} className="w-full h-full" />
 
-          {/* Mira animada com guia retangular */}
+          {/* Mira animada com guia retangular (formato ISBN ~2.4 : 1) */}
           {isScanning && (
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <div className="w-[92%] h-[55%] border-2 border-emerald-400/90 rounded-xl relative shadow-[0_0_20px_rgba(52,211,153,0.4)]">
+              <div className="w-[88%] h-[38%] border-2 border-emerald-400/90 rounded-xl relative shadow-[0_0_20px_rgba(52,211,153,0.4)]">
                 {/* Cantos destacados */}
                 <div className="absolute -top-[2px] -left-[2px] w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-xl" />
                 <div className="absolute -top-[2px] -right-[2px] w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-xl" />
@@ -774,21 +1032,27 @@ export const MobileCollectorPage: React.FC = () => {
 
                 {/* Linha vermelha animada */}
                 <div
-                  className="absolute left-[5%] right-[5%] h-[3px] bg-red-500 shadow-[0_0_12px_#ef4444] rounded-full"
+                  className="absolute left-[4%] right-[4%] h-[2.5px] bg-red-500 shadow-[0_0_12px_#ef4444] rounded-full"
                   style={{
                     top: '50%',
                     animation: 'scanline 2s ease-in-out infinite',
                   }}
                 />
               </div>
-              <span className="text-[11px] text-emerald-300 font-semibold mt-2.5 bg-black/70 px-3 py-1 rounded-full backdrop-blur-md">
-                Posicione o código de barras ISBN
-              </span>
-              {scanStatus && (
-                <span className="text-[9px] text-slate-400 mt-1 bg-black/50 px-2 py-0.5 rounded-full">
-                  {scanStatus}
+
+              <div className="flex flex-col items-center mt-2.5 space-y-1">
+                <span className="text-[11px] text-emerald-300 font-semibold bg-black/75 px-3 py-1 rounded-full backdrop-blur-md border border-emerald-500/30">
+                  Enquadre o código de barras ISBN
                 </span>
-              )}
+                <span className="text-[9.5px] text-slate-300 bg-black/60 px-2.5 py-0.5 rounded-full backdrop-blur-sm">
+                  Distância ideal: ~20cm • Toque para focar
+                </span>
+                {scanStatus && (
+                  <span className="text-[9px] text-emerald-400/90 bg-black/50 px-2 py-0.5 rounded-full font-mono">
+                    {scanStatus}
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
@@ -851,21 +1115,32 @@ export const MobileCollectorPage: React.FC = () => {
           )}
         </div>
 
-        {/* Controles de Câmera (Lanterna, Trocar Lente, Parar, Digitar Manual) */}
+        {/* Controles de Câmera (Lanterna, Zoom, Trocar Lente, Parar, Digitar Manual) */}
         {isScanning && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-1">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 px-1">
             {hasTorch && (
               <button
                 type="button"
                 onClick={toggleTorch}
                 className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs shadow-md transition-all active:scale-95 ${
                   torchEnabled
-                    ? 'bg-amber-400 text-slate-950'
+                    ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300'
                     : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700'
                 }`}
               >
                 <Flashlight className="w-4 h-4 text-amber-300" />
-                {torchEnabled ? 'Lanterna Ligada' : 'Ligar Lanterna'}
+                {torchEnabled ? 'Lanterna On' : 'Lanterna'}
+              </button>
+            )}
+
+            {zoomCapabilities && (
+              <button
+                type="button"
+                onClick={toggleZoom}
+                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/40 shadow-md transition-all active:scale-95"
+              >
+                <ZoomIn className="w-4 h-4 text-emerald-400" />
+                Zoom {zoomLevel.toFixed(1)}x
               </button>
             )}
 
@@ -876,7 +1151,7 @@ export const MobileCollectorPage: React.FC = () => {
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 shadow-md transition-all active:scale-95"
               >
                 <SwitchCamera className="w-4 h-4 text-emerald-400" />
-                Trocar Câmera
+                Câmera
               </button>
             )}
 
@@ -894,7 +1169,7 @@ export const MobileCollectorPage: React.FC = () => {
               onClick={stopCamera}
               className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs bg-rose-600 hover:bg-rose-500 text-white shadow-md transition-all active:scale-95"
             >
-              Pausar Câmera
+              Pausar
             </button>
           </div>
         )}
@@ -956,15 +1231,39 @@ export const MobileCollectorPage: React.FC = () => {
                   </p>
                 )}
               </div>
-              {!autoSave && (
+              <div className="flex flex-col gap-1.5 shrink-0">
+                {!autoSave && (
+                  <button
+                    type="button"
+                    onClick={handleManualSave}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg active:scale-95 transition-all"
+                  >
+                    Salvar
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={handleManualSave}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shrink-0 active:scale-95 transition-all"
+                  onClick={() => {
+                    stopCamera();
+                    setManualBookModal({
+                      isOpen: true,
+                      code: (lastScannedBook.code || '').toUpperCase(),
+                      isbn: lastScannedBook.isbn || '',
+                      title: lastScannedBook.title?.startsWith('LIVRO CÓDIGO') ? '' : (lastScannedBook.title || ''),
+                      author: lastScannedBook.author === 'A DEFINIR' ? '' : (lastScannedBook.author || ''),
+                      publisher: lastScannedBook.publisher === 'N/A' ? '' : (lastScannedBook.publisher || ''),
+                      shelf: lastScannedBook.shelf || selectedShelf,
+                      category: lastScannedBook.category || selectedCategory,
+                      bookType: lastScannedBook.bookType || selectedType,
+                      quantity: lastScannedBook.quantity || 1,
+                    });
+                  }}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] rounded-lg shadow-sm flex items-center justify-center gap-1 active:scale-95 transition-all"
                 >
-                  Salvar
+                  <Edit3 className="w-3 h-3" />
+                  Editar
                 </button>
-              )}
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 pt-2.5 border-t border-slate-800 text-[11px] text-slate-300">
@@ -974,6 +1273,209 @@ export const MobileCollectorPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Modal de Preenchimento Manual quando o ISBN não é reconhecido online */}
+        <Dialog
+          open={Boolean(manualBookModal?.isOpen)}
+          onOpenChange={(open) => {
+            if (!open) handleCancelManualModal();
+          }}
+        >
+          <DialogContent className="bg-slate-900 border border-slate-700 text-slate-100 max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="bg-amber-950/60 text-amber-400 border-amber-700 text-xs">
+                  Preenchimento Manual
+                </Badge>
+              </div>
+              <DialogTitle className="text-lg text-white">
+                Cadastrar Dados do Livro
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-400">
+                O código bipado não retornou dados online de ISBN. Preencha os campos abaixo para registrar o livro:
+              </DialogDescription>
+            </DialogHeader>
+
+            {manualBookModal && (
+              <div className="space-y-3 py-2 text-xs">
+                {/* Código do livro */}
+                <div className="space-y-1">
+                  <Label className="text-slate-300 text-[11px] font-semibold">Código do Livro / Tombamento</Label>
+                  <Input
+                    value={manualBookModal.code}
+                    onChange={(e) =>
+                      setManualBookModal((prev) => (prev ? { ...prev, code: e.target.value.toUpperCase() } : null))
+                    }
+                    className="bg-slate-800 border-slate-700 text-white font-mono uppercase text-sm"
+                  />
+                </div>
+
+                {/* ISBN com Busca Online */}
+                <div className="space-y-1">
+                  <Label className="text-slate-300 text-[11px] font-semibold">ISBN (Opcional - da contracapa)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={manualBookModal.isbn}
+                      onChange={(e) =>
+                        setManualBookModal((prev) => (prev ? { ...prev, isbn: e.target.value } : null))
+                      }
+                      placeholder="Ex: 9788535902778"
+                      className="bg-slate-800 border-slate-700 text-white font-mono text-sm flex-1"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleManualModalSearchIsbn}
+                      disabled={manualBookModal.isSearchingOnline}
+                      className="bg-blue-600 hover:bg-blue-500 text-white text-xs gap-1.5 shrink-0"
+                    >
+                      {manualBookModal.isSearchingOnline ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      )}
+                      Buscar
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Título */}
+                <div className="space-y-1">
+                  <Label className="text-slate-300 text-[11px] font-semibold flex items-center justify-between">
+                    <span>Título do Livro *</span>
+                    <span className="text-[10px] text-emerald-400 font-bold">Obrigatório</span>
+                  </Label>
+                  <Input
+                    value={manualBookModal.title}
+                    onChange={(e) =>
+                      setManualBookModal((prev) => (prev ? { ...prev, title: e.target.value.toUpperCase() } : null))
+                    }
+                    placeholder="Ex: DOM CASMURRO"
+                    autoFocus
+                    className="bg-slate-800 border-slate-700 text-white uppercase text-sm"
+                  />
+                </div>
+
+                {/* Autor */}
+                <div className="space-y-1">
+                  <Label className="text-slate-300 text-[11px] font-semibold flex items-center justify-between">
+                    <span>Autor *</span>
+                    <span className="text-[10px] text-emerald-400 font-bold">Obrigatório</span>
+                  </Label>
+                  <Input
+                    value={manualBookModal.author}
+                    onChange={(e) =>
+                      setManualBookModal((prev) => (prev ? { ...prev, author: e.target.value.toUpperCase() } : null))
+                    }
+                    placeholder="Ex: MACHADO DE ASSIS"
+                    className="bg-slate-800 border-slate-700 text-white uppercase text-sm"
+                  />
+                </div>
+
+                {/* Editora */}
+                <div className="space-y-1">
+                  <Label className="text-slate-300 text-[11px] font-semibold">Editora</Label>
+                  <Input
+                    value={manualBookModal.publisher}
+                    onChange={(e) =>
+                      setManualBookModal((prev) => (prev ? { ...prev, publisher: e.target.value.toUpperCase() } : null))
+                    }
+                    placeholder="Ex: ÁTICA, RECORD, N/A"
+                    className="bg-slate-800 border-slate-700 text-white uppercase text-sm"
+                  />
+                </div>
+
+                {/* Categoria, Tipo e Prateleira */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-slate-300 text-[10px]">Categoria</Label>
+                    <select
+                      value={manualBookModal.category}
+                      onChange={(e) =>
+                        setManualBookModal((prev) => (prev ? { ...prev, category: e.target.value } : null))
+                      }
+                      className="w-full bg-slate-800 border border-slate-700 rounded-md p-1.5 text-xs text-white"
+                    >
+                      {categories.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-slate-300 text-[10px]">Tipo</Label>
+                    <select
+                      value={manualBookModal.bookType}
+                      onChange={(e) =>
+                        setManualBookModal((prev) => (prev ? { ...prev, bookType: e.target.value } : null))
+                      }
+                      className="w-full bg-slate-800 border border-slate-700 rounded-md p-1.5 text-xs text-white"
+                    >
+                      {bookTypes.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-slate-300 text-[10px]">Prateleira</Label>
+                    <select
+                      value={manualBookModal.shelf}
+                      onChange={(e) =>
+                        setManualBookModal((prev) => (prev ? { ...prev, shelf: e.target.value } : null))
+                      }
+                      className="w-full bg-slate-800 border border-slate-700 rounded-md p-1.5 text-xs text-white"
+                    >
+                      {shelves.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Quantidade */}
+                <div className="space-y-1">
+                  <Label className="text-slate-300 text-[11px]">Quantidade de Cópias</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={manualBookModal.quantity}
+                    onChange={(e) =>
+                      setManualBookModal((prev) =>
+                        prev ? { ...prev, quantity: Math.max(1, parseInt(e.target.value) || 1) } : null
+                      )
+                    }
+                    className="bg-slate-800 border-slate-700 text-white text-sm w-24"
+                  />
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="flex gap-2 sm:justify-end pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCancelManualModal}
+                className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveManualBook}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+              >
+                Salvar Livro
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Histórico Recente desta Sessão */}
         {recentBooks.length > 0 && (
