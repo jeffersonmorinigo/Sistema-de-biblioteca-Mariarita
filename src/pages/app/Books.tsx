@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useFirestore } from '@/hooks/useFirestore';
+import { useSettings } from '@/hooks/useSettings';
 import { Book, Loan } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

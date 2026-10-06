@@ -18,7 +18,7 @@ import { isLikelyIsbn } from '@/lib/isbnService';
 declare global {
   interface Window {
     BarcodeDetector?: new (options?: { formats: string[] }) => {
-      detect: (source: any) => Promise<Array<{ rawValue: string; format: string }>>;
+      detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue: string; format: string }>>;
     };
   }
 }
