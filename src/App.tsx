@@ -12,6 +12,7 @@ import BackupPage from './pages/app/Backup';
 import NotFound from './pages/NotFound';
 import { Toaster } from '@/components/ui/sonner';
 import InitialBackupNotification from '@/components/InitialBackupNotification'; // Importando o novo componente
+import { LicenseLockOverlay } from '@/components/LicenseLockOverlay';
 import { useEffect } from 'react';
 import ErrorBoundary from '@/components/ErrorBoundary';
 
@@ -43,6 +44,8 @@ const AppRoutes = () => {
         <Route path="/" element={<HomeRedirect />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+      {/* Bloqueio de segurança e proteção anti-cópia/validade */}
+      <LicenseLockOverlay />
       {/* Renderiza a notificação de backup após o login */}
       <InitialBackupNotification />
     </Router>

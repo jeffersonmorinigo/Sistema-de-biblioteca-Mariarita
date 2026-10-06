@@ -12,6 +12,8 @@ import { showSuccess, showError } from '@/utils/toast';
 import { Trash2, Eraser, AlertTriangle, RotateCcw } from 'lucide-react';
 import { Book, Student, Loan } from '@/lib/types';
 import { BarcodeScannerConfig } from '@/components/BarcodeScannerConfig';
+import { SystemLicenseCard } from '@/components/SystemLicenseCard';
+import { SystemUpdateCard } from '@/components/SystemUpdateCard';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -305,6 +307,12 @@ const SettingsPage = () => {
       <BarcodeScannerConfig />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Card de Licença do Sistema e Proteção Anti-Cópia */}
+        <SystemLicenseCard currentSchoolName={settings.schoolName} />
+
+        {/* Card de Atualizações de Versão e Resolução de Problemas */}
+        <SystemUpdateCard />
+
         <Card>
           <CardHeader>
             <CardTitle>Informações da Escola</CardTitle>

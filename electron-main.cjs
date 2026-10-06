@@ -1,6 +1,8 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const { startEmbeddedServer, getLocalIps } = require('./electron/server.cjs');
+const { getHardwareId, loadSavedLicense, saveLicenseFile } = require('./electron/machineId.cjs');
+const { checkUpdates, downloadAndInstall } = require('./electron/updater.cjs');
 
 const isDev = process.env.NODE_ENV === 'development';
 let embeddedServer = null;
@@ -64,6 +66,55 @@ ipcMain.handle('get-network-info', () => {
     httpsPort: embeddedServer?.httpsPort || 8080,
     httpPort: embeddedServer?.httpPort || 8081,
   };
+});
+
+// Fornece a identificação estável e única do Hardware (antiópia)
+ipcMain.handle('get-machine-id', () => {
+  return getHardwareId();
+});
+
+// Lê a licença gravada em arquivo seguro do sistema
+ipcMain.handle('load-saved-license', () => {
+  return loadSavedLicense(app);
+});
+
+// Salva a licença em arquivo seguro do sistema
+ipcMain.handle('save-license-file', (_event, licenseKey) => {
+  return saveLicenseFile(app, licenseKey);
+});
+
+// Verifica se há novas atualizações do software
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    return await checkUpdates(app.getVersion());
+  } catch (err) {
+    return {
+      updateAvailable: false,
+      error: err.message,
+      currentVersion: app.getVersion(),
+    };
+  }
+});
+
+// Baixa e instala a atualização automaticamente
+ipcMain.handle('download-and-install-update', async (event, downloadUrl) => {
+  return await downloadAndInstall(downloadUrl, (percent) => {
+    event.sender.send('update-download-progress', percent);
+  });
+});
+
+// Retorna a versão atual do app instalada
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion();
+});
+
+// Abre URLs externas no navegador padrão
+ipcMain.handle('open-external-url', (_event, url) => {
+  if (url) {
+    shell.openExternal(url);
+    return true;
+  }
+  return false;
 });
 
 ipcMain.on('quit-app', () => {
