@@ -35,6 +35,9 @@ import {
   Loader2,
   Edit3,
   ZoomIn,
+  Image as ImageIcon,
+  HelpCircle,
+  Info,
 } from 'lucide-react';
 import { showSuccess, showError, showInfo } from '@/utils/toast';
 
@@ -80,9 +83,12 @@ export const MobileCollectorPage: React.FC = () => {
   const [sessionCount, setSessionCount] = useState<number>(0);
   const [recentBooks, setRecentBooks] = useState<Array<{ title: string; code: string; time: string }>>([]);
 
-  // Entrada manual
+  // Entrada manual e foto nativa
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualIsbn, setManualIsbn] = useState('');
+  const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
+  const [showChromeHelp, setShowChromeHelp] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Modal de Preenchimento Manual quando o livro/ISBN não for reconhecido online
   const [manualBookModal, setManualBookModal] = useState<{
@@ -184,35 +190,131 @@ export const MobileCollectorPage: React.FC = () => {
     [books, selectedShelf, selectedCategory, selectedType, autoSave]
   );
 
+  // === FOTO COM CÂMERA NATIVA (FALLBACK 100% COMPATÍVEL COM QUALQUER CELULAR) ===
+  const handleTriggerPhotoCapture = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleCapturePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsProcessingPhoto(true);
+    setScanStatus('📸 Lendo código de barras da foto...');
+
+    try {
+      let detectedCode: string | null = null;
+
+      // 1. Tenta API nativa BarcodeDetector (muito rápida em Android Chrome 83+)
+      if (typeof window !== 'undefined' && window.BarcodeDetector) {
+        try {
+          const detector = new window.BarcodeDetector({
+            formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code'],
+          });
+          const bitmap = await createImageBitmap(file);
+          const results = await detector.detect(bitmap);
+          if (results && results.length > 0) {
+            const sorted = [...results].sort((a, b) => {
+              const aIsbn = isLikelyIsbn(a.rawValue) || a.format === 'ean_13';
+              const bIsbn = isLikelyIsbn(b.rawValue) || b.format === 'ean_13';
+              if (aIsbn && !bIsbn) return -1;
+              if (!aIsbn && bIsbn) return 1;
+              return 0;
+            });
+            detectedCode = sorted[0]?.rawValue?.trim() || null;
+          }
+        } catch (detectorErr) {
+          console.warn('BarcodeDetector falhou no arquivo de imagem:', detectorErr);
+        }
+      }
+
+      // 2. Se não detectou ou API não disponível, usa scanFile do html5-qrcode
+      if (!detectedCode) {
+        const tempDiv = document.createElement('div');
+        tempDiv.id = 'temp-photo-scanner-' + Date.now();
+        tempDiv.style.display = 'none';
+        document.body.appendChild(tempDiv);
+
+        try {
+          const fileScanner = new Html5Qrcode(tempDiv.id, {
+            formatsToSupport: [
+              Html5QrcodeSupportedFormats.EAN_13,
+              Html5QrcodeSupportedFormats.EAN_8,
+              Html5QrcodeSupportedFormats.CODE_128,
+              Html5QrcodeSupportedFormats.CODE_39,
+              Html5QrcodeSupportedFormats.UPC_A,
+              Html5QrcodeSupportedFormats.UPC_E,
+              Html5QrcodeSupportedFormats.QR_CODE,
+            ],
+            verbose: false,
+          });
+
+          const scanResult = await fileScanner.scanFile(file, false);
+          detectedCode = scanResult?.trim() || null;
+          try {
+            await fileScanner.clear();
+          } catch (e) {}
+        } catch (scanErr) {
+          console.warn('html5-qrcode scanFile falhou:', scanErr);
+        } finally {
+          tempDiv.remove();
+        }
+      }
+
+      if (detectedCode) {
+        playBeep();
+        triggerHaptic();
+        setScanStatus(`✅ Código detectado na foto: ${detectedCode}`);
+        showSuccess(`Código detectado: ${detectedCode}`);
+        await handleProcessCode(detectedCode);
+      } else {
+        setScanStatus('⚠️ Código de barras não encontrado na foto');
+        showError('Não conseguimos ler o código de barras nesta foto. Aproxime mais da contracapa do livro e tente novamente, ou digite o ISBN.');
+      }
+    } catch (err: any) {
+      console.error('Erro ao ler foto do código:', err);
+      showError('Falha ao processar foto: ' + (err?.message || 'Tente novamente'));
+    } finally {
+      setIsProcessingPhoto(false);
+    }
+  };
+
   // === NATIVE BarcodeDetector SCANNER (Chrome Android 83+) ===
   const startNativeScanner = async () => {
     setCameraError(null);
     setScanStatus('Iniciando câmera de alta definição...');
 
     try {
-      const constraints: MediaStreamConstraints = {
-        video: {
-          facingMode: selectedCameraId ? undefined : { ideal: 'environment' },
-          deviceId: selectedCameraId ? { exact: selectedCameraId } : undefined,
-          width: { ideal: 1920, min: 1280 },
-          height: { ideal: 1080, min: 720 },
-        },
-        audio: false,
-      };
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Câmera ao vivo indisponível nesta conexão local. Use o botão "Fotografar Código" abaixo para escanear com a câmera do celular.');
+      }
 
-      let stream: MediaStream;
+      let stream: MediaStream | null = null;
       try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (exactErr) {
-        // Fallback: resolução mais flexível para celulares com restrições
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: 'environment',
+            facingMode: selectedCameraId ? undefined : { ideal: 'environment' },
+            deviceId: selectedCameraId ? { exact: selectedCameraId } : undefined,
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
           audio: false,
         });
+      } catch (e1) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' },
+            audio: false,
+          });
+        } catch (e2) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        }
       }
       streamRef.current = stream;
 
@@ -411,25 +513,44 @@ export const MobileCollectorPage: React.FC = () => {
         },
       };
 
-      const cameraSource = selectedCameraId
-        ? { deviceId: { exact: selectedCameraId } }
-        : {
-            facingMode: 'environment',
-            width: { ideal: 1920, min: 1280 },
-            height: { ideal: 1080, min: 720 },
-            focusMode: 'continuous',
-          };
+      let started = false;
+      const candidates: any[] = [];
+      if (selectedCameraId) {
+        candidates.push({ deviceId: { exact: selectedCameraId } });
+      }
+      candidates.push({
+        facingMode: 'environment',
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      });
+      candidates.push({ facingMode: 'environment' });
+      candidates.push({ facingMode: { ideal: 'environment' } });
+      candidates.push(true);
 
-      await html5QrCode.start(
-        cameraSource as any,
-        config as any,
-        async (decodedText) => {
-          if (!isProcessingRef.current) {
-            await handleScanResult(decodedText);
-          }
-        },
-        () => {}
-      );
+      let lastErr: any = null;
+      for (const camSource of candidates) {
+        try {
+          await html5QrCode.start(
+            camSource as any,
+            config as any,
+            async (decodedText) => {
+              if (!isProcessingRef.current) {
+                await handleScanResult(decodedText);
+              }
+            },
+            () => {}
+          );
+          started = true;
+          break;
+        } catch (attemptErr) {
+          lastErr = attemptErr;
+          console.warn('Tentativa com fonte de câmera falhou:', camSource, attemptErr);
+        }
+      }
+
+      if (!started) {
+        throw lastErr || new Error('Não foi possível iniciar o vídeo da câmera.');
+      }
 
       setScannerMode('fallback');
       setIsScanning(true);
@@ -460,16 +581,30 @@ export const MobileCollectorPage: React.FC = () => {
     } catch (err: any) {
       console.error('Erro ao iniciar câmera no coletor:', err);
       setIsScanning(false);
-      setCameraError(
-        err?.message ||
-          'Não foi possível ligar a câmera. Verifique se deu permissão no navegador.'
-      );
+      const isHttpOrInsecure =
+        typeof window !== 'undefined' &&
+        (!window.isSecureContext || window.location.protocol === 'http:');
+
+      const customMsg = isHttpOrInsecure
+        ? 'A câmera contínua foi bloqueada pelo navegador por estar em conexão HTTP local. Toque no botão "Fotografar Código" para usar a câmera nativa do celular (funciona direto) ou libere a câmera nas opções do site no Chrome.'
+        : (err?.message || 'Não foi possível ligar a câmera. Verifique se deu permissão no navegador.');
+
+      setCameraError(customMsg);
     }
   };
 
   // === UNIFIED START ===
   const startCamera = async () => {
     setCameraError(null);
+
+    // Checagem prévia se navigator.mediaDevices está disponível
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setCameraError(
+        'A câmera contínua foi bloqueada pelo navegador por ser uma conexão HTTP local. Toque no botão verde "📸 Fotografar Código" abaixo para escanear usando a câmera nativa do celular!'
+      );
+      setIsScanning(false);
+      return;
+    }
 
     // Tenta usar BarcodeDetector nativo primeiro (Chrome Android 83+)
     if (typeof window !== 'undefined' && window.BarcodeDetector) {
@@ -1056,36 +1191,122 @@ export const MobileCollectorPage: React.FC = () => {
             </div>
           )}
 
+          {/* Input oculto para acionar a câmera nativa do smartphone sem bloqueio SSL */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleCapturePhoto}
+          />
+
+          {/* Loader de processamento da foto */}
+          {isProcessingPhoto && (
+            <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-30 p-4 text-center">
+              <Loader2 className="w-10 h-10 text-emerald-400 animate-spin" />
+              <div>
+                <h4 className="text-sm font-bold text-white">Lendo código de barras da foto...</h4>
+                <p className="text-[11px] text-slate-300 mt-1">Identificando ISBN na foto capturada</p>
+              </div>
+            </div>
+          )}
+
           {/* Estado Parado ou Carregando */}
           {!isScanning && (
-            <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center p-4 text-center">
+            <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center p-3 text-center">
               {cameraError ? (
-                <div className="space-y-3 max-w-xs">
-                  <AlertCircle className="w-10 h-10 text-red-400 mx-auto" />
-                  <p className="text-xs text-red-200">{cameraError}</p>
-                  <Button
-                    size="sm"
-                    onClick={startCamera}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    Tentar Novamente
-                  </Button>
+                <div className="space-y-2.5 max-w-sm w-full p-2">
+                  <div className="flex items-center justify-center gap-2 text-red-400">
+                    <AlertCircle className="w-7 h-7 shrink-0" />
+                    <h3 className="text-xs font-bold text-white text-left">
+                      Câmera ao vivo bloqueada pelo navegador
+                    </h3>
+                  </div>
+
+                  <p className="text-[11px] text-slate-300 leading-tight">
+                    {cameraError}
+                  </p>
+
+                  {/* Ação Primária Recomendada: Câmera Nativa sem bloqueio */}
+                  <div className="pt-1 flex flex-col gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handleTriggerPhotoCapture}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-2 py-2.5 shadow-md w-full active:scale-95 transition-all"
+                    >
+                      <Camera className="w-4 h-4" />
+                      📸 Fotografar Código (Câmera Nativa)
+                    </Button>
+
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setShowManualInput(true)}
+                        className="bg-blue-600 hover:bg-blue-500 text-white text-xs gap-1.5 flex-1"
+                      >
+                        <Keyboard className="w-3.5 h-3.5" />
+                        Digitar ISBN
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={startCamera}
+                        className="border-slate-700 hover:bg-slate-800 text-slate-200 text-xs gap-1.5 flex-1"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Tentar ao Vivo
+                      </Button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowChromeHelp(!showChromeHelp)}
+                      className="text-[10.5px] text-emerald-400 hover:underline flex items-center justify-center gap-1 mt-0.5"
+                    >
+                      <HelpCircle className="w-3.5 h-3.5" />
+                      {showChromeHelp ? 'Ocultar instruções do Chrome' : 'Como liberar câmera ao vivo no Chrome Android?'}
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 max-w-xs w-full">
                   <Camera className="w-12 h-12 text-emerald-400 mx-auto animate-bounce" />
                   <div>
                     <h3 className="text-sm font-semibold text-white">Pronto para Coletar</h3>
-                    <p className="text-[11px] text-slate-400">Toque abaixo para ativar a câmera</p>
+                    <p className="text-[11px] text-slate-400">Escolha a forma que preferir para registrar</p>
                   </div>
-                  <Button
-                    onClick={startCamera}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2 shadow-lg gap-2 text-sm"
-                  >
-                    <Camera className="w-4 h-4" />
-                    Ligar Câmera e Escanear
-                  </Button>
+                  <div className="flex flex-col gap-2 w-full px-1">
+                    <Button
+                      onClick={handleTriggerPhotoCapture}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 shadow-lg gap-2 text-xs active:scale-95 transition-all"
+                    >
+                      <Camera className="w-4 h-4" />
+                      📸 Fotografar Código (Câmera Nativa)
+                    </Button>
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={startCamera}
+                        className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 text-xs gap-1.5"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Câmera ao Vivo
+                      </Button>
+
+                      <Button
+                        variant="secondary"
+                        onClick={() => setShowManualInput(true)}
+                        className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs gap-1.5"
+                      >
+                        <Keyboard className="w-3.5 h-3.5" />
+                        Digitar ISBN
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -1115,64 +1336,120 @@ export const MobileCollectorPage: React.FC = () => {
           )}
         </div>
 
-        {/* Controles de Câmera (Lanterna, Zoom, Trocar Lente, Parar, Digitar Manual) */}
-        {isScanning && (
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 px-1">
-            {hasTorch && (
+        {/* Card de Ajuda de Permissão do Chrome Android */}
+        {showChromeHelp && (
+          <Card className="bg-slate-900 border-emerald-800/60 p-3 text-xs space-y-2 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                <Info className="w-4 h-4 shrink-0" />
+                Como liberar a câmera no Chrome (Celular):
+              </div>
               <button
                 type="button"
-                onClick={toggleTorch}
-                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs shadow-md transition-all active:scale-95 ${
-                  torchEnabled
-                    ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700'
-                }`}
+                onClick={() => setShowChromeHelp(false)}
+                className="text-slate-400 hover:text-white text-xs px-1"
               >
-                <Flashlight className="w-4 h-4 text-amber-300" />
-                {torchEnabled ? 'Lanterna On' : 'Lanterna'}
+                ✕
               </button>
-            )}
-
-            {zoomCapabilities && (
-              <button
-                type="button"
-                onClick={toggleZoom}
-                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/40 shadow-md transition-all active:scale-95"
-              >
-                <ZoomIn className="w-4 h-4 text-emerald-400" />
-                Zoom {zoomLevel.toFixed(1)}x
-              </button>
-            )}
-
-            {availableCameras.length > 1 && (
-              <button
-                type="button"
-                onClick={switchCamera}
-                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 shadow-md transition-all active:scale-95"
-              >
-                <SwitchCamera className="w-4 h-4 text-emerald-400" />
-                Câmera
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setShowManualInput(!showManualInput)}
-              className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs bg-blue-600 hover:bg-blue-500 text-white shadow-md transition-all active:scale-95"
-            >
-              <Keyboard className="w-4 h-4 text-blue-200" />
-              Digitar ISBN
-            </button>
-
-            <button
-              type="button"
-              onClick={stopCamera}
-              className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs bg-rose-600 hover:bg-rose-500 text-white shadow-md transition-all active:scale-95"
-            >
-              Pausar
-            </button>
-          </div>
+            </div>
+            <ol className="list-decimal list-inside space-y-1.5 text-slate-300 text-[11px] leading-relaxed">
+              <li>
+                Na barra de endereço onde aparece o IP (ex: <code className="text-emerald-300 bg-slate-800 px-1 py-0.5 rounded">10.0.0.187:8080</code>), toque no ícone à esquerda (ícone de ajustes/sliders ou cadeado).
+              </li>
+              <li>
+                Toque em <strong>Permissões</strong> ou <strong>Configurações do site</strong>.
+              </li>
+              <li>
+                Localize <strong>Câmera</strong> e altere de <em>Bloqueado</em> para <strong>Permitir</strong>.
+              </li>
+              <li>
+                Toque no botão <strong>"Tentar ao Vivo"</strong> para ativar.
+              </li>
+              <li className="text-emerald-300 font-semibold list-none pt-1">
+                ⭐ <em>Melhor opção:</em> Você pode simplesmente tocar em <strong>"📸 Fotografar Código"</strong> que a câmera nativa do celular abre imediatamente e cadastra o livro sem precisar configurar nada!
+              </li>
+            </ol>
+          </Card>
         )}
+
+        {/* Barra de Ações Rápidas (SEMPRE VISÍVEL - Nunca deixa o usuário sem opção) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-1">
+          <button
+            type="button"
+            onClick={handleTriggerPhotoCapture}
+            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white shadow-md transition-all active:scale-95"
+          >
+            <Camera className="w-4 h-4" />
+            📸 Fotografar Código
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowManualInput(!showManualInput)}
+            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs bg-blue-600 hover:bg-blue-500 text-white shadow-md transition-all active:scale-95"
+          >
+            <Keyboard className="w-4 h-4 text-blue-200" />
+            {showManualInput ? 'Ocultar ISBN' : 'Digitar ISBN'}
+          </button>
+
+          {isScanning ? (
+            <>
+              {hasTorch && (
+                <button
+                  type="button"
+                  onClick={toggleTorch}
+                  className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs shadow-md transition-all active:scale-95 ${
+                    torchEnabled
+                      ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700'
+                  }`}
+                >
+                  <Flashlight className="w-4 h-4 text-amber-300" />
+                  {torchEnabled ? 'Lanterna On' : 'Lanterna'}
+                </button>
+              )}
+
+              {zoomCapabilities && (
+                <button
+                  type="button"
+                  onClick={toggleZoom}
+                  className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/40 shadow-md transition-all active:scale-95"
+                >
+                  <ZoomIn className="w-4 h-4 text-emerald-400" />
+                  Zoom {zoomLevel.toFixed(1)}x
+                </button>
+              )}
+
+              {availableCameras.length > 1 && (
+                <button
+                  type="button"
+                  onClick={switchCamera}
+                  className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 shadow-md transition-all active:scale-95"
+                >
+                  <SwitchCamera className="w-4 h-4 text-emerald-400" />
+                  Câmera
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={stopCamera}
+                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs bg-rose-600 hover:bg-rose-500 text-white shadow-md transition-all active:scale-95"
+              >
+                Pausar
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={startCamera}
+              className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 shadow-md transition-all active:scale-95 col-span-2 sm:col-span-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Ligar Vídeo ao Vivo
+            </button>
+          )}
+        </div>
 
         {/* Campo de Entrada Manual de ISBN */}
         {showManualInput && (

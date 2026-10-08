@@ -331,23 +331,42 @@ export const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({
         },
       };
 
-      const cameraSource = selectedCameraId
-        ? { deviceId: { exact: selectedCameraId } }
-        : {
-            facingMode: 'environment',
-            width: { ideal: 1920, min: 1280 },
-            height: { ideal: 1080, min: 720 },
-            focusMode: 'continuous',
-          };
+      let started = false;
+      const candidates: any[] = [];
+      if (selectedCameraId) {
+        candidates.push({ deviceId: { exact: selectedCameraId } });
+      }
+      candidates.push({
+        facingMode: 'environment',
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      });
+      candidates.push({ facingMode: 'environment' });
+      candidates.push({ facingMode: { ideal: 'environment' } });
+      candidates.push(true);
 
-      await html5QrCode.start(
-        cameraSource as any,
-        config as any,
-        (decodedText) => {
-          handleScanSuccess(decodedText);
-        },
-        () => {}
-      );
+      let lastErr: any = null;
+      for (const camSource of candidates) {
+        try {
+          await html5QrCode.start(
+            camSource as any,
+            config as any,
+            (decodedText) => {
+              handleScanSuccess(decodedText);
+            },
+            () => {}
+          );
+          started = true;
+          break;
+        } catch (attemptErr) {
+          lastErr = attemptErr;
+          console.warn('[CameraBarcodeScanner] Tentativa de câmera falhou:', camSource, attemptErr);
+        }
+      }
+
+      if (!started) {
+        throw lastErr || new Error('Não foi possível iniciar o vídeo da câmera.');
+      }
 
       setScannerMode('fallback');
       setIsScanning(true);

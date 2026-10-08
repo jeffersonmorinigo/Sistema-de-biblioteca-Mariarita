@@ -262,9 +262,9 @@ export const MobileCollectorDialog: React.FC<MobileCollectorDialogProps> = ({
                   2
                 </span>
                 <div>
-                  <span className="font-semibold">Permitir Câmera:</span>
+                  <span className="font-semibold">Fotografar ou Escanear ao Vivo:</span>
                   <p className="text-muted-foreground mt-0.5">
-                    Toque em <strong>"Escanear com Câmera"</strong> e confirme em <strong>"Permitir"</strong> quando o navegador solicitar acesso à câmera do smartphone.
+                    Toque em <strong>"📸 Fotografar Código"</strong> (usa a câmera nativa do celular e funciona direto sem bloqueios de segurança), ou ative a <strong>"Câmera ao Vivo"</strong> permitindo o acesso no navegador.
                   </p>
                 </div>
               </div>
@@ -274,9 +274,9 @@ export const MobileCollectorDialog: React.FC<MobileCollectorDialogProps> = ({
                   3
                 </span>
                 <div>
-                  <span className="font-semibold">Bipar Código de Barras (ISBN):</span>
+                  <span className="font-semibold">Cadastro Automático em 1-Toque:</span>
                   <p className="text-muted-foreground mt-0.5">
-                    Aponte para o código de barras na contracapa do livro. O sistema toca um aviso sonoro (bip), busca na BrasilAPI e salva automaticamente no banco da biblioteca!
+                    O código é lido, o sistema consulta a CBL/BrasilAPI, preenche título, autor e capa, e salva instantaneamente no banco de dados da biblioteca! Se preferir, também há a opção <strong>"Digitar ISBN"</strong>.
                   </p>
                 </div>
               </div>
