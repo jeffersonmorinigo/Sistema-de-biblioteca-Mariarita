@@ -13,6 +13,7 @@ import {
   ZoomIn,
 } from 'lucide-react';
 import { isLikelyIsbn } from '@/lib/isbnService';
+import { decodeVideoFrame, extractRealIsbn } from '@/lib/barcodeReader';
 
 // Declaração da API nativa BarcodeDetector (Chrome Android 83+)
 declare global {
@@ -95,7 +96,7 @@ export const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({
       if (isClosingRef.current) return;
 
       const now = Date.now();
-      const cleanText = decodedText.trim();
+      const cleanText = extractRealIsbn(decodedText);
 
       if (cleanText === lastScannedCode.current && now - lastScanTimestamp.current < 2500) {
         return;
@@ -258,6 +259,13 @@ export const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({
 
             const code = sorted[0]?.rawValue?.trim();
             if (code) {
+              handleScanSuccess(code);
+              return;
+            }
+          } else if (!isClosingRef.current && videoRef.current) {
+            // Fallback ZXing em tempo real
+            const code = await decodeVideoFrame(videoRef.current, canvas);
+            if (code && !isClosingRef.current) {
               handleScanSuccess(code);
               return;
             }

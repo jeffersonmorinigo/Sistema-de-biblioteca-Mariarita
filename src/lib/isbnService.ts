@@ -1,7 +1,10 @@
 /**
  * Serviço ultra-rápido para consulta de livros por ISBN via APIs públicas
- * Inclui timeouts estritos (AbortController) e consultas em paralelo (BrasilAPI, OpenLibrary e Google Books)
+ * Inclui timeouts equilibrados, conversão inteligente ISBN-10 <-> ISBN-13,
+ * e consultas em paralelo (BrasilAPI/CBL, Google Books e OpenLibrary).
  */
+
+import { extractRealIsbn, isbn10ToIsbn13, isbn13ToIsbn10 } from './barcodeReader';
 
 export interface BookApiDetails {
   title?: string;
@@ -17,17 +20,19 @@ export interface BookApiDetails {
 }
 
 /**
- * Limpa uma string de ISBN removendo traços, espaços e caracteres não numéricos
+ * Limpa uma string de ISBN removendo traços, espaços e tratando add-ons EAN-5/EAN-2
  */
 export function cleanIsbn(raw: string): string {
-  return raw.replace(/[^0-9X]/gi, '').trim();
+  if (!raw) return '';
+  return extractRealIsbn(raw);
 }
 
 /**
  * Verifica se a string tem formato plausível de código de barras de livro (EAN-13 / ISBN-10 / ISBN-13)
  */
 export function isLikelyIsbn(raw: string): boolean {
-  const cleaned = cleanIsbn(raw);
+  if (!raw) return false;
+  const cleaned = extractRealIsbn(raw).replace(/[^0-9X]/gi, '').toUpperCase();
   return (
     cleaned.length === 10 ||
     (cleaned.length === 13 && (cleaned.startsWith('978') || cleaned.startsWith('979')))
@@ -37,7 +42,7 @@ export function isLikelyIsbn(raw: string): boolean {
 /**
  * Helper de fetch com timeout estrito usando AbortController
  */
-async function fetchWithTimeout(url: string, timeoutMs: number = 3500): Promise<Response> {
+async function fetchWithTimeout(url: string, timeoutMs: number = 4500): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -58,7 +63,7 @@ async function fetchWithTimeout(url: string, timeoutMs: number = 3500): Promise<
  */
 async function fetchBrasilApi(isbn: string): Promise<BookApiDetails | null> {
   try {
-    const res = await fetchWithTimeout(`https://brasilapi.com.br/api/isbn/v1/${isbn}`, 3500);
+    const res = await fetchWithTimeout(`https://brasilapi.com.br/api/isbn/v1/${isbn}`, 4500);
     if (!res.ok) return null;
     const bData = await res.json();
     if (bData && (bData.title || bData.name)) {
@@ -98,13 +103,63 @@ async function fetchBrasilApi(isbn: string): Promise<BookApiDetails | null> {
 }
 
 /**
+ * Busca no Google Books API (com timeout resiliente)
+ */
+async function fetchGoogleBooks(isbn: string): Promise<BookApiDetails | null> {
+  try {
+    // 1. Busca exata por isbn:
+    let res = await fetchWithTimeout(
+      `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}&maxResults=1`,
+      4000
+    );
+
+    let data = res.ok ? await res.json() : null;
+
+    // 2. Se não encontrou, tenta busca direta pelo código
+    if (!data || data.totalItems === 0) {
+      res = await fetchWithTimeout(
+        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(isbn)}&maxResults=1`,
+        3500
+      );
+      if (res.ok) {
+        data = await res.json();
+      }
+    }
+
+    if (data && data.totalItems > 0 && data.items?.[0]?.volumeInfo) {
+      const info = data.items[0].volumeInfo;
+      const printType = info.printType === 'MAGAZINE' ? 'REVISTA' : 'LIVRO';
+      const category = info.categories && info.categories.length > 0 ? info.categories[0] : '';
+      return {
+        title: info.title || '',
+        author: info.authors ? info.authors.join(', ') : '',
+        publisher: info.publisher || '',
+        description: info.description || '',
+        pageCount: info.pageCount || undefined,
+        category,
+        bookType: printType,
+        publishedDate: info.publishedDate || '',
+        thumbnail:
+          info.imageLinks?.thumbnail ||
+          info.imageLinks?.smallThumbnail ||
+          '',
+        isbn,
+      };
+    }
+  } catch (err) {
+    // Silencioso
+  }
+  return null;
+}
+
+/**
  * Busca no OpenLibrary Search API (rápido e com acervo mundial e nacional)
  */
 async function fetchOpenLibrarySearch(isbn: string): Promise<BookApiDetails | null> {
   try {
     const res = await fetchWithTimeout(
-      `https://openlibrary.org/search.json?isbn=${isbn}&fields=title,author_name,publisher,first_publish_year,cover_i,subject`,
-      3500
+      `https://openlibrary.org/search.json?isbn=${encodeURIComponent(isbn)}&fields=title,author_name,publisher,first_publish_year,cover_i,subject&limit=1`,
+      4000
     );
     if (!res.ok) return null;
     const data = await res.json();
@@ -137,7 +192,7 @@ async function fetchOpenLibrarySearch(isbn: string): Promise<BookApiDetails | nu
  */
 async function fetchOpenLibraryIsbn(isbn: string): Promise<BookApiDetails | null> {
   try {
-    const res = await fetchWithTimeout(`https://openlibrary.org/isbn/${isbn}.json`, 3000);
+    const res = await fetchWithTimeout(`https://openlibrary.org/isbn/${encodeURIComponent(isbn)}.json`, 3500);
     if (!res.ok) return null;
     const doc = await res.json();
     if (doc && doc.title) {
@@ -160,102 +215,84 @@ async function fetchOpenLibraryIsbn(isbn: string): Promise<BookApiDetails | null
 }
 
 /**
- * Fallback para Google Books API (com timeout rápido)
+ * Consulta de livro executando requisições paralelas nos principais acervos
  */
-async function fetchGoogleBooks(isbn: string): Promise<BookApiDetails | null> {
-  try {
-    // Primeiro tenta busca exata por isbn
-    let res = await fetchWithTimeout(
-      `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`,
-      2500
-    );
+async function queryProvidersForIsbn(isbnToQuery: string): Promise<BookApiDetails | null> {
+  // 1. Executa BrasilAPI e Google Books simultaneamente (as fontes de maior precisão no Brasil)
+  const [resBrasil, resGoogle] = await Promise.allSettled([
+    fetchBrasilApi(isbnToQuery),
+    fetchGoogleBooks(isbnToQuery),
+  ]);
 
-    let data = res.ok ? await res.json() : null;
+  const brasil = resBrasil.status === 'fulfilled' ? resBrasil.value : null;
+  const google = resGoogle.status === 'fulfilled' ? resGoogle.value : null;
 
-    // Se não encontrou, tenta busca geral pelo código
-    if (!data || data.totalItems === 0) {
-      res = await fetchWithTimeout(
-        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(isbn)}`,
-        2500
-      );
-      if (res.ok) {
-        data = await res.json();
-      }
-    }
-
-    if (data && data.totalItems > 0 && data.items?.[0]?.volumeInfo) {
-      const info = data.items[0].volumeInfo;
-      const printType = info.printType === 'MAGAZINE' ? 'REVISTA' : 'LIVRO';
-      return {
-        title: info.title || '',
-        author: info.authors ? info.authors.join(', ') : '',
-        publisher: info.publisher || '',
-        description: info.description || '',
-        pageCount: info.pageCount || undefined,
-        category: info.categories ? info.categories[0] : undefined,
-        bookType: printType,
-        publishedDate: info.publishedDate || '',
-        thumbnail: info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || '',
-        isbn,
-      };
-    }
-  } catch (err) {
-    // Silencioso
+  // Se a BrasilAPI achou o livro
+  if (brasil && brasil.title) {
+    if (!brasil.author && google?.author) brasil.author = google.author;
+    if (!brasil.thumbnail && google?.thumbnail) brasil.thumbnail = google.thumbnail;
+    if (!brasil.category && google?.category) brasil.category = google.category;
+    if (!brasil.publisher && google?.publisher) brasil.publisher = google.publisher;
+    return brasil;
   }
+
+  // Se o Google Books achou o livro
+  if (google && google.title) {
+    return google;
+  }
+
+  // 2. Fallback para OpenLibrary (Search e ISBN direto)
+  const [resOpenSearch, resOpenIsbn] = await Promise.allSettled([
+    fetchOpenLibrarySearch(isbnToQuery),
+    fetchOpenLibraryIsbn(isbnToQuery),
+  ]);
+
+  const openSearch = resOpenSearch.status === 'fulfilled' ? resOpenSearch.value : null;
+  if (openSearch && openSearch.title) return openSearch;
+
+  const openIsbn = resOpenIsbn.status === 'fulfilled' ? resOpenIsbn.value : null;
+  if (openIsbn && openIsbn.title) return openIsbn;
+
   return null;
 }
 
 /**
- * Consulta detalhes do livro a partir do ISBN consultando provedores em paralelo
- * Garante retorno em no máximo ~3.5 segundos sem travar a interface do celular.
+ * Consulta detalhes do livro a partir do ISBN consultando provedores com conversão automática ISBN-10 <-> ISBN-13
  */
 export async function fetchBookDetailsByIsbn(rawIsbn: string): Promise<BookApiDetails | null> {
   const isbn = cleanIsbn(rawIsbn);
   if (!isbn) return null;
 
   try {
-    // Executa BrasilAPI e OpenLibrary Search simultaneamente
-    const [resBrasil, resOpenLibSearch] = await Promise.allSettled([
-      fetchBrasilApi(isbn),
-      fetchOpenLibrarySearch(isbn),
-    ]);
+    // 1. Tenta com o código exatamente como veio
+    let result = await queryProvidersForIsbn(isbn);
+    if (result && result.title) return result;
 
-    const brasil = resBrasil.status === 'fulfilled' ? resBrasil.value : null;
-    const openLib = resOpenLibSearch.status === 'fulfilled' ? resOpenLibSearch.value : null;
-
-    // Se a BrasilAPI achou o livro
-    if (brasil && brasil.title) {
-      if (!brasil.author && openLib?.author) {
-        brasil.author = openLib.author;
+    // 2. Se for ISBN-10 (10 dígitos), converte para ISBN-13 e tenta novamente
+    if (isbn.length === 10) {
+      const converted13 = isbn10ToIsbn13(isbn);
+      if (converted13 && converted13 !== isbn) {
+        result = await queryProvidersForIsbn(converted13);
+        if (result && result.title) {
+          result.isbn = converted13;
+          return result;
+        }
       }
-      if (!brasil.thumbnail && openLib?.thumbnail) {
-        brasil.thumbnail = openLib.thumbnail;
-      }
-      if (!brasil.category && openLib?.category) {
-        brasil.category = openLib.category;
-      }
-      return brasil;
     }
 
-    // Se a Open Library achou o livro
-    if (openLib && openLib.title) {
-      return openLib;
+    // 3. Se for ISBN-13 (13 dígitos iniciando com 978), converte para ISBN-10 e tenta novamente
+    if (isbn.length === 13 && isbn.startsWith('978')) {
+      const converted10 = isbn13ToIsbn10(isbn);
+      if (converted10) {
+        result = await queryProvidersForIsbn(converted10);
+        if (result && result.title) {
+          result.isbn = isbn; // Mantém o ISBN-13 original no registro
+          return result;
+        }
+      }
     }
-
-    // Tenta OpenLibrary ISBN direto e Google Books como alternativa rápida
-    const [resOpenIsbn, resGoogle] = await Promise.allSettled([
-      fetchOpenLibraryIsbn(isbn),
-      fetchGoogleBooks(isbn),
-    ]);
-
-    const openIsbn = resOpenIsbn.status === 'fulfilled' ? resOpenIsbn.value : null;
-    if (openIsbn && openIsbn.title) return openIsbn;
-
-    const google = resGoogle.status === 'fulfilled' ? resGoogle.value : null;
-    if (google && google.title) return google;
-
   } catch (err) {
-    console.warn('[IsbnService] Erro durante busca combinada:', err);
+    console.warn('[IsbnService] Erro durante busca:', err);
   }
 
   return null;
