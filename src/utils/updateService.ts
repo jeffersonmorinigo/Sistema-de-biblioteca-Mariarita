@@ -13,7 +13,7 @@ export interface UpdateInfo {
   error?: string;
 }
 
-const LOCAL_VERSION = '1.0.0';
+const LOCAL_VERSION = '1.0.1';
 
 /**
  * Compara versões no padrão semver
@@ -135,6 +135,7 @@ export async function publishNewVersion(params: {
 }): Promise<void> {
   const docRef = doc(db, 'settings', 'app_updates');
   await setDoc(docRef, {
+    schoolName: 'Escola Maria Rita',
     latestVersion: params.version.trim().replace(/^v/i, ''),
     releaseNotes: params.notes.trim(),
     downloadUrl: params.downloadUrl?.trim() || '',

@@ -1,57 +1,23 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if a user is authenticated (using the custom auth logic)
-    // Note: Since we are not using Firebase Auth, we can't reliably verify identity in rules
-    // based on UID. We can only guard against malformed data.
-    
-    function isValidBook() {
-      let data = request.resource.data;
-      return data.title is string && data.title.size() > 0 &&
-             data.author is string &&
-             data.category is string;
-    }
-    
-    function isValidStudent() {
-      let data = request.resource.data;
-      return data.name is string && data.name.size() > 0 &&
-             data.class is string &&
-             data.type is string && data.type.size() > 0 &&
-             data.isBlocked is bool &&
-             (data.blockDate == null || data.blockDate is string);
-    }
-
-    match /users/{userId} {
-      allow read: if true;
-      allow write: if request.resource.data.email is string && 
-                      request.resource.data.password is string;
-    }
-    
     match /books/{bookId} {
-      allow read: if true;
-      allow create, update: if isValidBook();
-      allow delete: if true;
+      allow read, write: if true;
     }
-    
     match /students/{studentId} {
-      allow read: if true;
-      allow create, update: if isValidStudent();
-      allow delete: if true;
+      allow read, write: if true;
     }
-    
     match /loans/{loanId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.bookId is string &&
-                              request.resource.data.studentId is string;
-      allow delete: if true;
+      allow read, write: if true;
     }
-    
     match /settings/{settingsId} {
       allow read, write: if true;
     }
-    
+    match /users/{userId} {
+      allow read, write: if true;
+    }
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
   }
 }

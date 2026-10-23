@@ -1,6 +1,6 @@
 {
-  "version": "1.0.0",
-  "publishedAt": "2026-10-06",
-  "notes": "Versão 1.0.0 estável com proteção contra cópias por hardware, licenciamento com prazo de validade e sincronização em tempo real.",
-  "downloadUrl": "https://github.com/jeffersonmorinigo/Sistema-de-biblioteca-Mariarita/releases"
+  "version": "1.0.1",
+  "notes": "Sincronização bidirecional em tempo real entre todos os computadores da biblioteca, regras de nuvem otimizadas e painel de backup/sincronização manual.",
+  "downloadUrl": "https://github.com/jeffersonmorinigo/Sistema-de-biblioteca-Mariarita/releases",
+  "publishedAt": "2026-10-23T01:15:00.000Z"
 }

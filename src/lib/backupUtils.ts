@@ -1,45 +1,56 @@
 import { format } from 'date-fns';
 import { getAll, getSettings, updateSettings, addDocument, deleteDocument, setDocument } from './firestoreService';
-import { getLocalCollection, getLocalSettings, saveLocalCollection, saveLocalSettings, defaultSettings } from './localDb';
+import { getLocalCollection, getLocalSettings, saveLocalCollection, saveLocalSettings, defaultSettings, unmarkLocalDeleted, clearLocalDeletedIds } from './localDb';
+import { sanitizeDataForFirestore } from './syncService';
 import { Book, Student, Loan, User } from './types';
 
 /**
  * Coleta todos os dados para backup (com fallback no banco local caso offline).
  */
 const getAllData = async () => {
+  const localBooks = getLocalCollection<Book>('books');
+  const localStudents = getLocalCollection<Student>('students');
+  const localLoans = getLocalCollection<Loan>('loans');
+  const localUsers = getLocalCollection<User>('users');
+  const localSettings = getLocalSettings();
+
   try {
-    const [books, students, loans, users, settings] = await Promise.all([
-      getAll<Book>('books').catch(() => getLocalCollection<Book>('books')),
-      getAll<Student>('students').catch(() => getLocalCollection<Student>('students')),
-      getAll<Loan>('loans').catch(() => getLocalCollection<Loan>('loans')),
-      getAll<User>('users').catch(() => getLocalCollection<User>('users')),
-      getSettings().catch(() => getLocalSettings()),
+    const [cloudBooks, cloudStudents, cloudLoans, cloudUsers, settings] = await Promise.all([
+      getAll<Book>('books').catch(() => localBooks),
+      getAll<Student>('students').catch(() => localStudents),
+      getAll<Loan>('loans').catch(() => localLoans),
+      getAll<User>('users').catch(() => localUsers),
+      getSettings().catch(() => localSettings),
     ]);
 
+    const activeBooks = (cloudBooks || []).filter((b: any) => !b.isDeleted && b.status !== 'deleted');
+    const activeStudents = (cloudStudents || []).filter((s: any) => !s.isDeleted && s.status !== 'deleted');
+    const activeLoans = (cloudLoans || []).filter((l: any) => !l.isDeleted && l.status !== 'deleted');
+    const activeUsers = (cloudUsers || []).filter((u: any) => !u.isDeleted && u.status !== 'deleted');
+
     return {
-      books: books.length > 0 ? books : getLocalCollection<Book>('books'),
-      students: students.length > 0 ? students : getLocalCollection<Student>('students'),
-      loans: loans.length > 0 ? loans : getLocalCollection<Loan>('loans'),
-      users: users.length > 0 ? users : getLocalCollection<User>('users'),
-      schoolName: settings.schoolName || getLocalSettings().schoolName,
-      book_categories: settings.book_categories || getLocalSettings().book_categories,
-      student_classes: settings.student_classes || getLocalSettings().student_classes,
-      book_shelves: settings.book_shelves || getLocalSettings().book_shelves,
-      book_types: settings.book_types || getLocalSettings().book_types,
+      books: activeBooks.length > 0 ? activeBooks : localBooks,
+      students: activeStudents.length > 0 ? activeStudents : localStudents,
+      loans: activeLoans.length > 0 ? activeLoans : localLoans,
+      users: activeUsers.length > 0 ? activeUsers : localUsers,
+      schoolName: settings?.schoolName || localSettings.schoolName,
+      book_categories: settings?.book_categories || localSettings.book_categories,
+      student_classes: settings?.student_classes || localSettings.student_classes,
+      book_shelves: settings?.book_shelves || localSettings.book_shelves,
+      book_types: settings?.book_types || localSettings.book_types,
     };
   } catch (err) {
     console.warn('[Backup] Falha no Firestore, usando banco local:', err);
-    const settings = getLocalSettings();
     return {
-      books: getLocalCollection<Book>('books'),
-      students: getLocalCollection<Student>('students'),
-      loans: getLocalCollection<Loan>('loans'),
-      users: getLocalCollection<User>('users'),
-      schoolName: settings.schoolName,
-      book_categories: settings.book_categories,
-      student_classes: settings.student_classes,
-      book_shelves: settings.book_shelves,
-      book_types: settings.book_types,
+      books: localBooks,
+      students: localStudents,
+      loans: localLoans,
+      users: localUsers,
+      schoolName: localSettings.schoolName,
+      book_categories: localSettings.book_categories,
+      student_classes: localSettings.student_classes,
+      book_shelves: localSettings.book_shelves,
+      book_types: localSettings.book_types,
     };
   }
 };
@@ -189,48 +200,49 @@ export const restoreFromBackup = async (backupData: any) => {
 
       console.log(`[Restore] Coleção "${colName}": ${items.length} itens encontrados.`);
 
+      // Limpa marcadores de exclusão para garantir que nada fique oculto
+      clearLocalDeletedIds(colName);
+      items.forEach((item) => {
+        if (item?.id) unmarkLocalDeleted(colName, item.id);
+      });
+
       // Salva imediatamente no banco local
       saveLocalCollection(colName, items);
 
-      // Limpar coleção atual na nuvem
-      const currentData = await getAll(colName);
-      if (currentData.length > 0) {
-        console.log(`[Restore] Limpando ${currentData.length} itens de "${colName}"...`);
-        // Deletar em pequenos grupos para não sobrecarregar
-        const deleteChunkSize = 20;
-        for (let i = 0; i < currentData.length; i += deleteChunkSize) {
-          const chunk = currentData.slice(i, i + deleteChunkSize);
-          await Promise.all(chunk.map(item => deleteDocument(colName, (item as any).id)));
+      // Tenta limpar itens antigos na nuvem sem travar se delete for bloqueado
+      try {
+        const currentData = await getAll(colName);
+        if (currentData.length > 0) {
+          console.log(`[Restore] Atualizando ${currentData.length} itens de "${colName}"...`);
+          const deleteChunkSize = 20;
+          for (let i = 0; i < currentData.length; i += deleteChunkSize) {
+            const chunk = currentData.slice(i, i + deleteChunkSize);
+            await Promise.allSettled(chunk.map(async (item) => {
+              try {
+                await deleteDocument(colName, (item as any).id);
+              } catch (delErr) {
+                // Se delete físico falhar, marca soft-delete
+                await setDocument(colName, (item as any).id, { isDeleted: true, status: 'deleted' }).catch(() => {});
+              }
+            }));
+          }
         }
+      } catch (cleanupErr) {
+        console.warn(`[Restore] Aviso ao limpar "${colName}" na nuvem:`, cleanupErr);
       }
 
-      // Adicionar novos dados (Com sanitização para evitar erros de campos inválidos no Firestore)
+      // Adicionar novos dados na nuvem com sanitização garantida
       if (items.length > 0) {
         console.log(`[Restore] Enviando novos dados para "${colName}"...`);
-
-        // Processa em paralelos moderados para performance e estabilidade
         const addChunkSize = 20;
         for (let i = 0; i < items.length; i += addChunkSize) {
           const chunk = items.slice(i, i + addChunkSize);
-          await Promise.all(chunk.map(async (item) => {
+          await Promise.allSettled(chunk.map(async (item) => {
             if (!item || typeof item !== 'object') return;
-
-            // Preservar o ID original se existir para manter integridade das referências
-            const originalId = item.id;
-            const { id, ...cleanData } = item;
-
-            // Sanitização básica campo a campo
-            const sanitizedData: any = {};
-            Object.entries(cleanData).forEach(([k, v]) => {
-              if (v !== undefined) sanitizedData[k] = v;
-            });
-
+            const originalId = item.id || `doc_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+            const sanitizedData = sanitizeDataForFirestore(colName, item);
             try {
-              if (originalId) {
-                await setDocument(colName, originalId, sanitizedData);
-              } else {
-                await addDocument(colName, sanitizedData);
-              }
+              await setDocument(colName, originalId, sanitizedData);
             } catch (err) {
               console.error(`[Restore] Falha ao inserir item em ${colName}:`, err);
             }

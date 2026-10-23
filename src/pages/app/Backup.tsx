@@ -21,13 +21,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, Upload, AlertTriangle, Database, Trash2 } from 'lucide-react';
-import { showSuccess, showError } from '@/utils/toast';
+import { Download, Upload, AlertTriangle, Database, Trash2, CloudUpload, CloudDownload, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { showSuccess, showError, showInfo } from '@/utils/toast';
 import { generateAndDownloadJsonBackup, generateAndDownloadSqlBackup, restoreFromBackup } from '@/lib/backupUtils';
 import { getAll, deleteDocument } from '@/lib/firestoreService';
 import { getLocalCollection, saveLocalCollection, enqueueSyncOperation } from '@/lib/localDb';
-import { processSyncQueue } from '@/lib/syncService';
+import { processSyncQueue, uploadAllLocalDataToCloud, downloadAllFromCloud } from '@/lib/syncService';
 import { Loan } from '@/lib/types';
+
 
 const BackupPage = () => {
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
@@ -71,6 +72,33 @@ const BackupPage = () => {
       showError('Ocorreu um erro ao gerar o backup SQL.');
     }
     setIsProcessing(false);
+  };
+
+  const handleUploadAllToCloud = async () => {
+    setIsProcessing(true);
+    showInfo('Enviando todos os dados deste computador para a nuvem...');
+    try {
+      const res = await uploadAllLocalDataToCloud();
+      showSuccess(`Sincronização concluída com sucesso! ${res.booksUploaded} livros, ${res.studentsUploaded} alunos e ${res.loansUploaded} empréstimos enviados. Os outros computadores já têm acesso a tudo!`);
+    } catch (err: any) {
+      showError(`Erro ao enviar dados para a nuvem: ${err.message || 'Verifique a conexão'}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDownloadAllFromCloud = async () => {
+    setIsProcessing(true);
+    showInfo('Baixando todos os dados da nuvem para este computador...');
+    try {
+      const res = await downloadAllFromCloud();
+      showSuccess(`Download concluído com sucesso! ${res.booksDownloaded} livros, ${res.studentsDownloaded} alunos e ${res.loansDownloaded} empréstimos sincronizados neste computador!`);
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (err: any) {
+      showError(`Erro ao baixar dados da nuvem: ${err.message || 'Verifique a conexão'}`);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleClearByDate = async () => {
@@ -231,6 +259,59 @@ const BackupPage = () => {
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Backup & Restauração</h1>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Sincronização em Nuvem (Multi-computadores) */}
+        <Card className="md:col-span-2 lg:col-span-3 border-blue-200 dark:border-blue-900 bg-blue-50/40 dark:bg-blue-950/20 shadow-sm">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <CloudUpload className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              <CardTitle className="text-xl">Sincronização entre Computadores (Rede / Nuvem)</CardTitle>
+            </div>
+            <CardDescription className="text-sm">
+              Use esta seção para compartilhar todos os cadastros de livros, alunos e empréstimos entre computadores diferentes da biblioteca.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="p-4 bg-background border rounded-lg flex flex-col justify-between">
+                <div>
+                  <h4 className="font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+                    <CloudUpload className="h-4 w-4" /> Computador Principal (com os cadastros)
+                  </h4>
+                  <p className="text-sm text-muted-foreground mt-1 mb-4">
+                    Clique abaixo no PC onde você já cadastrou os livros e alunos para enviar tudo à nuvem. Os outros computadores receberão tudo imediatamente.
+                  </p>
+                </div>
+                <Button onClick={handleUploadAllToCloud} disabled={isProcessing} className="bg-blue-600 hover:bg-blue-700 text-white w-full">
+                  <CloudUpload className="mr-2 h-4 w-4" />
+                  {isProcessing ? 'Enviando...' : 'Enviar Dados Deste PC para a Nuvem'}
+                </Button>
+              </div>
+
+              <div className="p-4 bg-background border rounded-lg flex flex-col justify-between">
+                <div>
+                  <h4 className="font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                    <CloudDownload className="h-4 w-4" /> Segundo Computador (que precisa ver tudo)
+                  </h4>
+                  <p className="text-sm text-muted-foreground mt-1 mb-4">
+                    Clique abaixo no computador que não está visualizando os dados para forçar o download completo de tudo o que está na nuvem.
+                  </p>
+                </div>
+                <Button onClick={handleDownloadAllFromCloud} variant="outline" disabled={isProcessing} className="border-emerald-600 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 w-full">
+                  <CloudDownload className="mr-2 h-4 w-4" />
+                  {isProcessing ? 'Baixando...' : 'Baixar Dados da Nuvem para Este PC'}
+                </Button>
+              </div>
+            </div>
+
+            <div className="text-xs text-muted-foreground bg-muted/60 p-3 rounded-md flex items-start gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+              <span>
+                <strong>Sincronização Automática:</strong> Assim que a nuvem estiver com os dados, ambos os computadores sincronizam automaticamente em tempo real sempre que você adicionar, editar ou emprestar livros!
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Fazer Backup</CardTitle>

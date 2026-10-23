@@ -4,19 +4,13 @@ const DB_PREFIX = 'biblioteca_local_';
 const DELETED_ITEMS_PREFIX = 'biblioteca_deleted_';
 const CURRENT_PROJECT_VERSION = 'v3_mariarita';
 
-// Limpa cache de dados caso o usuário tenha dados de versão anterior
+// Garante registro da versão sem apagar cadastros existentes
 if (typeof window !== 'undefined') {
   try {
-    const savedVersion = localStorage.getItem('biblioteca_db_version');
-    if (savedVersion !== CURRENT_PROJECT_VERSION) {
-      localStorage.removeItem(`${DB_PREFIX}books`);
-      localStorage.removeItem(`${DB_PREFIX}students`);
-      localStorage.removeItem(`${DB_PREFIX}loans`);
-      localStorage.removeItem(`${DB_PREFIX}sync_queue`);
-      localStorage.setItem('biblioteca_db_version', CURRENT_PROJECT_VERSION);
-    }
+    localStorage.setItem('biblioteca_db_version', CURRENT_PROJECT_VERSION);
   } catch (e) {}
 }
+
 
 export interface SyncItem {
   id: string;
@@ -102,6 +96,18 @@ export function unmarkLocalDeleted(collectionName: string, id: string): void {
     console.error('[LocalDB] Erro ao desmarcar item deletado:', e);
   }
 }
+
+/**
+ * Limpa todos os marcadores de exclusão de uma coleção
+ */
+export function clearLocalDeletedIds(collectionName: string): void {
+  try {
+    localStorage.removeItem(`${DELETED_ITEMS_PREFIX}${collectionName}`);
+  } catch (e) {
+    console.error('[LocalDB] Erro ao limpar IDs deletados:', e);
+  }
+}
+
 
 /**
  * Lê uma coleção completa do armazenamento local
