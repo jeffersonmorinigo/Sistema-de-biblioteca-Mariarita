@@ -26,12 +26,32 @@ import {
   FileText,
 } from 'lucide-react';
 import { showSuccess, showError, showInfo } from '@/utils/toast';
-import { checkSystemUpdates, publishNewVersion, type UpdateInfo } from '@/utils/updateService';
+import { checkSystemUpdates, publishNewVersion, getInstalledVersion, LOCAL_VERSION, type UpdateInfo } from '@/utils/updateService';
 
 export const SystemUpdateCard: React.FC = () => {
   const [checking, setChecking] = useState(false);
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-  const [lastChecked, setLastChecked] = useState<string | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(() => {
+    try {
+      const cached = localStorage.getItem('biblioteca_cached_update_info');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [installedVersion, setInstalledVersion] = useState<string>(() => {
+    try {
+      return localStorage.getItem('biblioteca_app_version') || LOCAL_VERSION;
+    } catch {
+      return LOCAL_VERSION;
+    }
+  });
+  const [lastChecked, setLastChecked] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('biblioteca_last_update_check') || null;
+    } catch {
+      return null;
+    }
+  });
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
 
@@ -44,7 +64,7 @@ export const SystemUpdateCard: React.FC = () => {
   const [downloadUrlInput, setDownloadUrlInput] = useState('');
   const [publishing, setPublishing] = useState(false);
 
-  // Carrega a versão instalada inicialmente
+  // Carrega a versão instalada inicialmente e registra listeners
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     if (typeof window !== 'undefined' && window.electron && typeof window.electron.onDownloadProgress === 'function') {
@@ -52,6 +72,16 @@ export const SystemUpdateCard: React.FC = () => {
         setDownloadProgress(percent);
       });
     }
+
+    // Busca versão real do executável instalado
+    getInstalledVersion().then((ver) => {
+      if (ver) {
+        setInstalledVersion(ver);
+        try {
+          localStorage.setItem('biblioteca_app_version', ver);
+        } catch {}
+      }
+    });
 
     return () => {
       if (unlisten) unlisten();
@@ -63,7 +93,21 @@ export const SystemUpdateCard: React.FC = () => {
     try {
       const res = await checkSystemUpdates();
       setUpdateInfo(res);
-      setLastChecked(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+      if (res.currentVersion) {
+        setInstalledVersion(res.currentVersion);
+        try {
+          localStorage.setItem('biblioteca_app_version', res.currentVersion);
+        } catch {}
+      }
+      try {
+        localStorage.setItem('biblioteca_cached_update_info', JSON.stringify(res));
+      } catch {}
+
+      const timeStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      setLastChecked(timeStr);
+      try {
+        localStorage.setItem('biblioteca_last_update_check', timeStr);
+      } catch {}
 
       if (res.updateAvailable) {
         showInfo(`Nova versão encontrada: v${res.latestVersion}!`);
@@ -149,7 +193,7 @@ export const SystemUpdateCard: React.FC = () => {
     }
   };
 
-  const currentVersion = updateInfo?.currentVersion || '1.0.0';
+  const currentVersion = updateInfo?.currentVersion || installedVersion || LOCAL_VERSION;
   const hasUpdate = updateInfo?.updateAvailable ?? false;
 
   return (

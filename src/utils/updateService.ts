@@ -13,7 +13,22 @@ export interface UpdateInfo {
   error?: string;
 }
 
-const LOCAL_VERSION = '1.0.2';
+export const LOCAL_VERSION = '1.0.2';
+
+/**
+ * Retorna a versão real instalada (via Electron ou constante local)
+ */
+export async function getInstalledVersion(): Promise<string> {
+  if (typeof window !== 'undefined' && window.electron && typeof window.electron.getAppVersion === 'function') {
+    try {
+      const v = await window.electron.getAppVersion();
+      if (v) return v;
+    } catch (e) {
+      console.warn('Erro ao ler versão do Electron:', e);
+    }
+  }
+  return LOCAL_VERSION;
+}
 
 /**
  * Compara versões no padrão semver
