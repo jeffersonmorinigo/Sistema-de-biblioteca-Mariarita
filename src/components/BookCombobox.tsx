@@ -5,7 +5,7 @@ import { Check, ChevronsUpDown } from "lucide-react"
 import { useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { normalizeString } from "@/utils/stringUtils"
+import { normalizeString, compareBookCodes } from "@/utils/stringUtils"
 import {
   Command,
   CommandEmpty,
@@ -52,7 +52,7 @@ export function BookCombobox({ books = [], value, onChange }: BookComboboxProps)
         return { ...book, availableCount };
       })
       .filter(book => book.availableCount > 0)
-      .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'pt-BR', { sensitivity: 'base' }));
+      .sort((a, b) => compareBookCodes(a.code, b.code) || (a.title || '').localeCompare(b.title || '', 'pt-BR', { sensitivity: 'base' }));
   }, [books, activeLoansByCode]);
 
   const selectedBookTitle = useMemo(() => {

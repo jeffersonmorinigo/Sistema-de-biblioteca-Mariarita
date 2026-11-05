@@ -27,8 +27,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { PlusCircle, Search, Edit, Trash2, Upload, Barcode, Camera, Smartphone } from 'lucide-react';
-import { normalizeString } from '@/utils/stringUtils';
+import { PlusCircle, Search, Edit, Trash2, Upload, Barcode, Camera, Smartphone, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { normalizeString, compareBookCodes } from '@/utils/stringUtils';
 import BookForm, { BookFormData } from '@/components/BookForm';
 import ImportBooksDialog from '@/components/ImportBooksDialog';
 import { showSuccess, showError, showInfo } from '@/utils/toast';
@@ -53,6 +53,21 @@ const BooksPage = () => {
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
   const [isMobileCollectorOpen, setIsMobileCollectorOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+
+  type SortField = 'code' | 'title' | 'author' | 'publisher' | 'bookType' | 'isbn' | 'shelf' | 'available';
+  type SortDirection = 'asc' | 'desc';
+
+  const [sortField, setSortField] = useState<SortField>('code');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
   const scannerSettings = settings.barcodeScanner || {
     enabled: true,
@@ -181,7 +196,7 @@ const BooksPage = () => {
 
   const filteredBooks = useMemo(() => {
     const normalizedSearch = normalizeString(searchTerm);
-    return books.filter(book =>
+    const filtered = books.filter(book =>
       normalizeString(book.title).includes(normalizedSearch) ||
       normalizeString(book.author).includes(normalizedSearch) ||
       normalizeString(book.code).includes(normalizedSearch) ||
@@ -190,7 +205,41 @@ const BooksPage = () => {
       normalizeString(book.bookType || '').includes(normalizedSearch) ||
       normalizeString(book.category || '').includes(normalizedSearch)
     );
-  }, [books, searchTerm]);
+
+    return filtered.sort((a, b) => {
+      let comparison = 0;
+      if (sortField === 'code') {
+        comparison = compareBookCodes(a.code, b.code);
+      } else if (sortField === 'title') {
+        comparison = (a.title || '').localeCompare(b.title || '', 'pt-BR', { sensitivity: 'base' });
+      } else if (sortField === 'author') {
+        comparison = (a.author || '').localeCompare(b.author || '', 'pt-BR', { sensitivity: 'base' });
+      } else if (sortField === 'publisher') {
+        comparison = (a.publisher || '').localeCompare(b.publisher || '', 'pt-BR', { sensitivity: 'base' });
+      } else if (sortField === 'bookType') {
+        comparison = (a.bookType || '').localeCompare(b.bookType || '', 'pt-BR', { sensitivity: 'base' });
+      } else if (sortField === 'isbn') {
+        comparison = (a.isbn || '').localeCompare(b.isbn || '', 'pt-BR', { sensitivity: 'base', numeric: true });
+      } else if (sortField === 'shelf') {
+        comparison = (a.shelf || '').localeCompare(b.shelf || '', 'pt-BR', { sensitivity: 'base', numeric: true });
+      } else if (sortField === 'available') {
+        const qtyA = typeof a.quantity === 'number' && !isNaN(a.quantity) ? a.quantity : 1;
+        const qtyB = typeof b.quantity === 'number' && !isNaN(b.quantity) ? b.quantity : 1;
+        const activeLoansA = a.code ? (activeLoansByCode.get(a.code) || 0) : 0;
+        const activeLoansB = b.code ? (activeLoansByCode.get(b.code) || 0) : 0;
+        const availA = Math.max(0, qtyA - activeLoansA);
+        const availB = Math.max(0, qtyB - activeLoansB);
+        comparison = availA - availB;
+      }
+
+      // Desempate estável sempre pelo código numérico crescente
+      if (comparison === 0 && sortField !== 'code') {
+        comparison = compareBookCodes(a.code, b.code);
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [books, searchTerm, sortField, sortDirection, activeLoansByCode]);
 
   const handleAddBook = async (data: BookFormData) => {
     try {
@@ -396,14 +445,118 @@ const BooksPage = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Código</TableHead>
-              <TableHead>Título</TableHead>
-              <TableHead>Autor</TableHead>
-              <TableHead>Editora</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead>ISBN</TableHead>
-              <TableHead>Prateleira</TableHead>
-              <TableHead>Disponível</TableHead>
+              <TableHead
+                className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+                onClick={() => handleSort('code')}
+                title="Clique para ordenar por Código (Crescente / Decrescente)"
+              >
+                <div className="flex items-center gap-1 font-semibold text-foreground">
+                  Código
+                  {sortField === 'code' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 text-primary" /> : <ArrowDown className="h-4 w-4 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 opacity-40" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+                onClick={() => handleSort('title')}
+                title="Clique para ordenar por Título"
+              >
+                <div className="flex items-center gap-1">
+                  Título
+                  {sortField === 'title' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 text-primary" /> : <ArrowDown className="h-4 w-4 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 opacity-40" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+                onClick={() => handleSort('author')}
+                title="Clique para ordenar por Autor"
+              >
+                <div className="flex items-center gap-1">
+                  Autor
+                  {sortField === 'author' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 text-primary" /> : <ArrowDown className="h-4 w-4 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 opacity-40" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+                onClick={() => handleSort('publisher')}
+                title="Clique para ordenar por Editora"
+              >
+                <div className="flex items-center gap-1">
+                  Editora
+                  {sortField === 'publisher' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 text-primary" /> : <ArrowDown className="h-4 w-4 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 opacity-40" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+                onClick={() => handleSort('bookType')}
+                title="Clique para ordenar por Tipo"
+              >
+                <div className="flex items-center gap-1">
+                  Tipo
+                  {sortField === 'bookType' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 text-primary" /> : <ArrowDown className="h-4 w-4 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 opacity-40" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+                onClick={() => handleSort('isbn')}
+                title="Clique para ordenar por ISBN"
+              >
+                <div className="flex items-center gap-1">
+                  ISBN
+                  {sortField === 'isbn' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 text-primary" /> : <ArrowDown className="h-4 w-4 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 opacity-40" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+                onClick={() => handleSort('shelf')}
+                title="Clique para ordenar por Prateleira"
+              >
+                <div className="flex items-center gap-1">
+                  Prateleira
+                  {sortField === 'shelf' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 text-primary" /> : <ArrowDown className="h-4 w-4 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 opacity-40" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+                onClick={() => handleSort('available')}
+                title="Clique para ordenar por Disponibilidade"
+              >
+                <div className="flex items-center gap-1">
+                  Disponível
+                  {sortField === 'available' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 text-primary" /> : <ArrowDown className="h-4 w-4 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 opacity-40" />
+                  )}
+                </div>
+              </TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>

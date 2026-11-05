@@ -13,7 +13,7 @@ export interface UpdateInfo {
   error?: string;
 }
 
-const LOCAL_VERSION = '1.0.1';
+const LOCAL_VERSION = '1.0.2';
 
 /**
  * Compara versões no padrão semver

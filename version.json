@@ -1,6 +1,6 @@
 {
-  "version": "1.0.1",
-  "notes": "Sincronização bidirecional em tempo real entre todos os computadores da biblioteca, regras de nuvem otimizadas e painel de backup/sincronização manual.",
+  "version": "1.0.2",
+  "notes": "Ordenação numérica crescente automática de códigos de livros (ex: 0001-01, 0001-02, 0002-01) e cabeçalhos ordenáveis.",
   "downloadUrl": "https://github.com/jeffersonmorinigo/Sistema-de-biblioteca-Mariarita/releases",
-  "publishedAt": "2026-10-23T01:15:00.000Z"
+  "publishedAt": "2026-11-05T15:20:00.000Z"
 }
