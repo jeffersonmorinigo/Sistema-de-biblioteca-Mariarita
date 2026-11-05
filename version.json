@@ -1,6 +1,6 @@
 {
   "version": "1.0.2",
-  "notes": "Ordenação numérica crescente automática de códigos de livros (ex: 0001-01, 0001-02, 0002-01) e cabeçalhos ordenáveis.",
+  "notes": "Correção dos botões de editar e excluir livros, validação de códigos, ordenação numérica crescente automática (ex: 0001-01, 0001-02, 0002-01) e sincronização aprimorada.",
   "downloadUrl": "https://github.com/jeffersonmorinigo/Sistema-de-biblioteca-Mariarita/releases",
   "publishedAt": "2026-11-05T15:20:00.000Z"
 }
