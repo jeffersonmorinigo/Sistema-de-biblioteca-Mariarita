@@ -269,12 +269,23 @@ const BooksPage = () => {
 
   const handleEditBook = async (data: BookFormData) => {
     try {
-      if (!selectedBook?.id) {
+      const bookId = selectedBook?.id;
+      if (!bookId) {
         // Failsafe: se não tem ID, é novo cadastro!
         await handleAddBook(data);
         return;
       }
-      await updateBook(selectedBook.id, {
+
+      // Valida conflito de código com outro livro existente
+      const conflict = books.some(
+        b => b.id !== bookId && b.code && b.code.toUpperCase() === data.code.toUpperCase()
+      );
+      if (conflict) {
+        showError(`Um livro diferente já está cadastrado com o código "${data.code}". Escolha outro.`);
+        return;
+      }
+
+      await updateBook(bookId, {
         code: data.code.toUpperCase(),
         isbn: data.isbn || '',
         title: data.title.toUpperCase(),
@@ -576,34 +587,47 @@ const BooksPage = () => {
                     <TableCell>{book.isbn}</TableCell>
                     <TableCell>{book.shelf || 'N/A'}</TableCell>
                     <TableCell className="font-semibold">{available}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(book)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" title="Excluir livro">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Isso excluirá o registro do livro <strong>"{book.title}"</strong> (Código: {book.code}) e todas as suas cópias. A ação não pode ser desfeita.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction
-                              className="bg-red-600 hover:bg-red-700 text-white font-semibold"
-                              onClick={() => handleDeleteBook(book.id)}
+                    <TableCell className="text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditDialog(book)}
+                          className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                          title="Editar livro"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
+                              title="Excluir livro"
                             >
-                              Excluir Livro
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Isso excluirá o registro do livro <strong>"{book.title}"</strong> (Código: {book.code}) e todas as suas cópias. A ação não pode ser desfeita.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-red-600 hover:bg-red-700 text-white font-semibold"
+                                onClick={() => handleDeleteBook(book.id)}
+                              >
+                                Excluir Livro
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

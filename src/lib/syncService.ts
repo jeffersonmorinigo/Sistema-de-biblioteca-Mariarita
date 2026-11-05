@@ -196,11 +196,16 @@ export async function processSyncQueue(): Promise<void> {
         } else if (item.action === 'delete') {
           const docRef = doc(db, item.collection, item.docId);
           try {
-            await deleteDoc(docRef);
+            const sanitized = sanitizeDataForFirestore(item.collection, {
+              ...(item.data || {}),
+              isDeleted: true,
+              status: 'deleted',
+              title: item.data?.title || '[EXCLUIDO]',
+            });
+            await setDoc(docRef, { ...sanitized, isDeleted: true, status: 'deleted' }, { merge: true });
+            await deleteDoc(docRef).catch(() => {});
           } catch (delErr: any) {
-            // Se o Firestore bloquear exclusão física (regras de segurança), aplica soft-delete preservando integridade
-            console.warn(`[SyncService] Delete físico em ${item.collection}/${item.docId}, aplicando soft-delete...`);
-            await setDoc(docRef, { isDeleted: true, status: 'deleted' }, { merge: true }).catch(() => {});
+            console.warn(`[SyncService] Delete em ${item.collection}/${item.docId}:`, delErr);
           }
           dequeueSyncOperation(item.id);
         } else if (item.action === 'setSettings') {
@@ -285,9 +290,9 @@ export function startCollectionSync<T extends { id: string }>(
       // 1. Mapeia todos os itens da nuvem
       const mergedMap = new Map<string, T>();
       cloudItems.forEach((cloudItem) => {
-        // Se está ativo na nuvem, desmarca de deletados locais acidentalmente
-        if (deletedLocalIds.has(cloudItem.id)) {
-          unmarkLocalDeleted(collectionName, cloudItem.id);
+        // Se este item foi deletado localmente ou está na fila de exclusão, NÃO adiciona de volta!
+        if (deletedDocIds.has(cloudItem.id)) {
+          return;
         }
         mergedMap.set(cloudItem.id, cloudItem);
       });

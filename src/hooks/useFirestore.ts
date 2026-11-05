@@ -89,17 +89,20 @@ export function useFirestore<T extends { id: string }>(collectionName: string) {
 
   const remove = useCallback(
     async (id: string) => {
+      const existing = getLocalCollection<T>(collectionName).find((i) => i.id === id);
+
       // 1. Remove do banco local imediatamente
       removeLocalItem(collectionName, id);
 
-      // 2. Enfileira para exclusão no Firebase
+      // 2. Enfileira para exclusão no Firebase com dados completos para validação
       enqueueSyncOperation({
         collection: collectionName,
         docId: id,
         action: 'delete',
+        data: existing,
       });
 
-      // 3. Tenta sincronizar
+      // 3. Tenta sincronizar imediatamente
       processSyncQueue().catch(() => {});
     },
     [collectionName]

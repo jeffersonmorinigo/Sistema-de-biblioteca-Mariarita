@@ -194,7 +194,7 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
     showError(`Preencha os campos obrigatórios: ${missing.join(', ')}`);
   };
 
-  const handleFormSubmit = (data: BookFormData) => {
+  const handleFormSubmit = async (data: BookFormData) => {
     const transformedData = {
       ...data,
       code: (data.code || '').trim().toUpperCase(),
@@ -207,8 +207,12 @@ const BookForm = ({ book, onSubmit, closeDialog, categories, shelves, bookTypes 
       bookType: (data.bookType || bookTypes[0] || 'LIVRO').trim().toUpperCase(),
       quantity: Number(data.quantity) || 1,
     };
-    onSubmit(transformedData);
-    closeDialog();
+    try {
+      await onSubmit(transformedData);
+      closeDialog();
+    } catch (err) {
+      console.error('Erro ao salvar livro:', err);
+    }
   };
 
   return (

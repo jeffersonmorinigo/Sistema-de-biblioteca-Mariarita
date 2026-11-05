@@ -173,12 +173,15 @@ export function updateLocalItem<T extends { id: string }>(
   updates: Partial<T>,
   emitEvent: boolean = true
 ): void {
+  unmarkLocalDeleted(collectionName, id);
   const items = getLocalCollection<T>(collectionName);
   const index = items.findIndex((i) => i.id === id);
   if (index >= 0) {
     items[index] = { ...items[index], ...updates };
-    saveLocalCollection(collectionName, items, emitEvent);
+  } else {
+    items.push({ id, ...updates } as T);
   }
+  saveLocalCollection(collectionName, items, emitEvent);
 }
 
 /**
