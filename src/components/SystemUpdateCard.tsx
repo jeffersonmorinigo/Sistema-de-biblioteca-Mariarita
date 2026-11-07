@@ -24,12 +24,22 @@ import {
   Lock,
   ArrowUpCircle,
   FileText,
+  Zap,
 } from 'lucide-react';
 import { showSuccess, showError, showInfo } from '@/utils/toast';
-import { checkSystemUpdates, publishNewVersion, getInstalledVersion, LOCAL_VERSION, type UpdateInfo } from '@/utils/updateService';
+import {
+  checkSystemUpdates,
+  publishNewVersion,
+  getInstalledVersion,
+  restartAppService,
+  applyOtaUpdateService,
+  LOCAL_VERSION,
+  type UpdateInfo,
+} from '@/utils/updateService';
 
 export const SystemUpdateCard: React.FC = () => {
   const [checking, setChecking] = useState(false);
+  const [updateReady, setUpdateReady] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(() => {
     try {
       const cached = localStorage.getItem('biblioteca_cached_update_info');
@@ -66,11 +76,21 @@ export const SystemUpdateCard: React.FC = () => {
 
   // Carrega a versão instalada inicialmente e registra listeners
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    if (typeof window !== 'undefined' && window.electron && typeof window.electron.onDownloadProgress === 'function') {
-      unlisten = window.electron.onDownloadProgress((percent) => {
-        setDownloadProgress(percent);
-      });
+    let unlistenProgress: (() => void) | undefined;
+    let unlistenReady: (() => void) | undefined;
+
+    if (typeof window !== 'undefined' && window.electron) {
+      if (typeof window.electron.onDownloadProgress === 'function') {
+        unlistenProgress = window.electron.onDownloadProgress((percent) => {
+          setDownloadProgress(percent);
+        });
+      }
+      if (typeof window.electron.onOtaUpdateReady === 'function') {
+        unlistenReady = window.electron.onOtaUpdateReady(() => {
+          setDownloading(false);
+          setUpdateReady(true);
+        });
+      }
     }
 
     // Busca versão real do executável instalado
@@ -84,7 +104,8 @@ export const SystemUpdateCard: React.FC = () => {
     });
 
     return () => {
-      if (unlisten) unlisten();
+      if (unlistenProgress) unlistenProgress();
+      if (unlistenReady) unlistenReady();
     };
   }, []);
 
@@ -122,15 +143,29 @@ export const SystemUpdateCard: React.FC = () => {
   };
 
   const handleDownloadAndInstall = async () => {
-    if (!updateInfo?.downloadUrl) {
-      showError('Nenhuma URL de download disponível para esta versão.');
-      return;
-    }
-
     setDownloading(true);
     setDownloadProgress(0);
 
-    // Se estiver no Electron, usa o updater nativo
+    // 1. Tenta atualização rápida OTA sem reinstalar o executável
+    if (updateInfo?.distUrl && typeof window !== 'undefined' && window.electron && typeof window.electron.applyOtaUpdate === 'function') {
+      try {
+        await applyOtaUpdateService(updateInfo.distUrl, updateInfo.latestVersion);
+        setDownloading(false);
+        setUpdateReady(true);
+        showSuccess(`Nova versão v${updateInfo.latestVersion} instalada com sucesso sem reinstalar o executável!`);
+        return;
+      } catch (otaErr) {
+        console.warn('[SystemUpdateCard] Atualização OTA falhou, recorrendo ao instalador:', otaErr);
+      }
+    }
+
+    if (!updateInfo?.downloadUrl) {
+      showError('Nenhuma URL de download disponível para esta versão.');
+      setDownloading(false);
+      return;
+    }
+
+    // 2. Se não conseguir OTA, usa o instalador como contingência
     if (typeof window !== 'undefined' && window.electron && typeof window.electron.downloadAndInstallUpdate === 'function') {
       try {
         const res = await window.electron.downloadAndInstallUpdate(updateInfo.downloadUrl);
@@ -138,7 +173,7 @@ export const SystemUpdateCard: React.FC = () => {
           showInfo('O download foi aberto no navegador para instalação.');
           setDownloading(false);
         } else if (res.executingInstaller) {
-          showSuccess('Download concluído! O sistema está sendo reiniciado para aplicar a atualização...');
+          showSuccess('Download concluído! O instalador silencioso foi iniciado.');
         }
       } catch (err: any) {
         showError('Erro ao atualizar: ' + (err?.message || 'Tente abrir pelo link'));
@@ -275,21 +310,39 @@ export const SystemUpdateCard: React.FC = () => {
                     </div>
                     <Progress value={downloadProgress} className="h-2" />
                     <p className="text-[11px] text-muted-foreground text-center">
-                      O sistema será reiniciado automaticamente ao concluir.
+                      Baixando os arquivos sem necessidade de reinstalar...
                     </p>
                   </div>
+                ) : updateReady ? (
+                  <Button
+                    type="button"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 shadow-md flex items-center justify-center gap-2"
+                    onClick={() => restartAppService()}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Reiniciar Sistema Agora (Aplicar v{updateInfo.latestVersion})
+                  </Button>
                 ) : (
                   <Button
                     type="button"
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs h-9 shadow-sm"
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs h-9 shadow-sm flex items-center justify-center gap-2"
                     onClick={handleDownloadAndInstall}
                   >
-                    <DownloadCloud className="h-4 w-4 mr-2" />
-                    Baixar e Atualizar Agora
+                    <DownloadCloud className="h-4 w-4" />
+                    Atualizar Agora (Sem Reinstalar Executável)
                   </Button>
                 )}
               </div>
             )}
+          </div>
+
+          {/* Destaque de atualização automática em segundo plano */}
+          <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-emerald-900 dark:text-emerald-300 text-xs shadow-sm">
+            <Zap className="h-4 w-4 shrink-0 text-amber-500 fill-amber-500" />
+            <div className="leading-snug">
+              <span className="font-semibold">Atualização em Rede Automática:</span>{' '}
+              Todos os computadores da biblioteca recebem as novidades em segundo plano sem necessidade de reinstalar o executável.
+            </div>
           </div>
 
           {/* Botão de Verificação Principal */}

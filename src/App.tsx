@@ -12,6 +12,7 @@ import BackupPage from './pages/app/Backup';
 import NotFound from './pages/NotFound';
 import { Toaster } from '@/components/ui/sonner';
 import InitialBackupNotification from '@/components/InitialBackupNotification'; // Importando o novo componente
+import GlobalUpdateNotifier from '@/components/GlobalUpdateNotifier';
 import { LicenseLockOverlay } from '@/components/LicenseLockOverlay';
 import { useEffect } from 'react';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -27,6 +28,8 @@ const AppRoutes = () => {
 
   return (
     <Router>
+      {/* Notificador de atualização automática OTA em tempo real */}
+      <GlobalUpdateNotifier />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/coletor" element={<MobileCollectorPage />} />

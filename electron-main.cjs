@@ -2,13 +2,17 @@ const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const { startEmbeddedServer, getLocalIps } = require('./electron/server.cjs');
 const { getHardwareId, loadSavedLicense, saveLicenseFile } = require('./electron/machineId.cjs');
-const { checkUpdates, downloadAndInstall } = require('./electron/updater.cjs');
+const { checkUpdates, downloadAndInstall, downloadAndApplyOta, getActiveDistInfo } = require('./electron/updater.cjs');
 
 const isDev = process.env.NODE_ENV === 'development';
 let embeddedServer = null;
+let mainWindow = null;
+let autoUpdateRunning = false;
 
 function createWindow() {
-  const mainWindow = new BrowserWindow({
+  const activeDist = getActiveDistInfo(app);
+
+  mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 800,
@@ -31,15 +35,60 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:8080');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+    mainWindow.loadFile(path.join(activeDist.dir, 'index.html'));
   }
 }
 
-app.whenReady().then(() => {
-  // Inicia servidor embutido HTTP/HTTPS para permitir acesso de celulares na rede local
-  const distPath = path.join(__dirname, 'dist');
+/**
+ * Rotina de atualização em segundo plano (OTA) sem necessidade de reinstalar o .exe
+ */
+async function runSilentAutoUpdateCheck() {
+  if (autoUpdateRunning) return;
+  autoUpdateRunning = true;
   try {
-    embeddedServer = startEmbeddedServer(distPath, {
+    const activeDist = getActiveDistInfo(app);
+    const update = await checkUpdates(activeDist.version);
+    if (update && update.updateAvailable && update.distUrl) {
+      console.log(`[AutoUpdate] Atualização OTA v${update.latestVersion} encontrada. Baixando pacote em segundo plano...`);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('ota-update-downloading', {
+          version: update.latestVersion,
+          notes: update.releaseNotes,
+        });
+      }
+
+      await downloadAndApplyOta(update.distUrl, update.latestVersion, (percent) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('update-download-progress', percent);
+        }
+      });
+
+      console.log(`[AutoUpdate] Versão v${update.latestVersion} instalada e pronta em segundo plano!`);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('ota-update-ready', {
+          version: update.latestVersion,
+          notes: update.releaseNotes,
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[AutoUpdate] Verificação em segundo plano:', err.message);
+  } finally {
+    autoUpdateRunning = false;
+  }
+}
+
+function startAutoUpdateScheduler() {
+  // Verifica 5 segundos após iniciar
+  setTimeout(runSilentAutoUpdateCheck, 5000);
+  // E checa a cada 15 minutos enquanto o app estiver aberto
+  setInterval(runSilentAutoUpdateCheck, 15 * 60 * 1000);
+}
+
+app.whenReady().then(() => {
+  const activeDist = getActiveDistInfo(app);
+  try {
+    embeddedServer = startEmbeddedServer(activeDist.dir, {
       httpsPort: 8080,
       httpPort: 8081,
     });
@@ -48,6 +97,7 @@ app.whenReady().then(() => {
   }
 
   createWindow();
+  startAutoUpdateScheduler();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -68,7 +118,7 @@ ipcMain.handle('get-network-info', () => {
   };
 });
 
-// Fornece a identificação estável e única do Hardware (antiópia)
+// Fornece a identificação estável e única do Hardware (anti-cópia)
 ipcMain.handle('get-machine-id', () => {
   return getHardwareId();
 });
@@ -86,26 +136,53 @@ ipcMain.handle('save-license-file', (_event, licenseKey) => {
 // Verifica se há novas atualizações do software
 ipcMain.handle('check-for-updates', async () => {
   try {
-    return await checkUpdates(app.getVersion());
+    const activeDist = getActiveDistInfo(app);
+    return await checkUpdates(activeDist.version);
   } catch (err) {
+    const activeDist = getActiveDistInfo(app);
     return {
       updateAvailable: false,
       error: err.message,
-      currentVersion: app.getVersion(),
+      currentVersion: activeDist.version,
     };
   }
 });
 
-// Baixa e instala a atualização automaticamente
+// Baixa e instala a atualização OTA (Over-The-Air) leve sem precisar reinstalar o executável
+ipcMain.handle('apply-ota-update', async (event, distUrl, version) => {
+  return await downloadAndApplyOta(distUrl, version, (percent) => {
+    event.sender.send('update-download-progress', percent);
+  });
+});
+
+// Baixa e instala a atualização completa por executável (fallback silencioso)
 ipcMain.handle('download-and-install-update', async (event, downloadUrl) => {
   return await downloadAndInstall(downloadUrl, (percent) => {
     event.sender.send('update-download-progress', percent);
   });
 });
 
-// Retorna a versão atual do app instalada
+// Retorna a versão atual ativa (seja da atualização OTA ou empacotada)
 ipcMain.handle('get-app-version', () => {
-  return app.getVersion();
+  const activeDist = getActiveDistInfo(app);
+  return activeDist.version;
+});
+
+// Reinicia o sistema imediatamente para carregar os novos arquivos
+ipcMain.handle('restart-app', () => {
+  app.relaunch();
+  app.exit(0);
+  return true;
+});
+
+// Recarrega o frontend com a versão mais recente em tempo real
+ipcMain.handle('reload-active-dist', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const activeDist = getActiveDistInfo(app);
+    mainWindow.loadFile(path.join(activeDist.dir, 'index.html'));
+    return true;
+  }
+  return false;
 });
 
 // Abre URLs externas no navegador padrão

@@ -1,6 +1,7 @@
 {
-  "version": "1.0.2",
-  "notes": "Correção dos botões de editar e excluir livros, validação de códigos, ordenação numérica crescente automática (ex: 0001-01, 0001-02, 0002-01) e sincronização aprimorada.",
-  "downloadUrl": "https://github.com/jeffersonmorinigo/Sistema-de-biblioteca-Mariarita/releases",
-  "publishedAt": "2026-11-05T15:20:00.000Z"
+  "version": "1.0.3",
+  "notes": "Atualização automática em segundo plano (OTA) para múltiplos computadores sem necessidade de reinstalar o executável, sincronização instantânea em rede e correções gerais.",
+  "downloadUrl": "https://github.com/jeffersonmorinigo/Sistema-de-biblioteca-Mariarita/releases/download/v1.0.3/Sistema-de-Biblioteca-Maria-Rita-Setup-1.0.3.exe",
+  "distUrl": "https://github.com/jeffersonmorinigo/Sistema-de-biblioteca-Mariarita/releases/download/v1.0.3/dist.zip",
+  "publishedAt": "2026-11-07T12:00:00.000Z"
 }

@@ -3,6 +3,8 @@
 interface Window {
   electron?: {
     quitApp: () => void;
+    restartApp: () => Promise<boolean>;
+    reloadActiveDist: () => Promise<boolean>;
     getNetworkInfo: () => Promise<{
       ips: Array<{ name: string; address: string; family: string }>;
       primaryIp: string;
@@ -18,10 +20,16 @@ interface Window {
       latestVersion: string;
       releaseNotes?: string;
       downloadUrl?: string;
+      distUrl?: string;
       publishedAt?: string;
       releaseUrl?: string;
       message?: string;
       error?: string;
+    }>;
+    applyOtaUpdate: (distUrl: string, version: string) => Promise<{
+      success?: boolean;
+      version?: string;
+      distDir?: string;
     }>;
     downloadAndInstallUpdate: (downloadUrl: string) => Promise<{
       success?: boolean;
@@ -31,5 +39,7 @@ interface Window {
     getAppVersion: () => Promise<string>;
     openExternalUrl: (url: string) => Promise<boolean>;
     onDownloadProgress: (callback: (percent: number) => void) => () => void;
+    onOtaUpdateDownloading: (callback: (data: { version: string; notes?: string }) => void) => () => void;
+    onOtaUpdateReady: (callback: (data: { version: string; notes?: string }) => void) => () => void;
   };
 }
