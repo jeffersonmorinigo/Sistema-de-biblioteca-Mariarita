@@ -119,6 +119,16 @@
       ],
       "icon": "public/logo.png"
     },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Sistema de Biblioteca Maria Rita",
+      "uninstallDisplayName": "Sistema de Biblioteca Maria Rita",
+      "deleteAppDataOnUninstall": false
+    },
     "mac": {
       "target": "dmg",
       "icon": "public/logo.png"
