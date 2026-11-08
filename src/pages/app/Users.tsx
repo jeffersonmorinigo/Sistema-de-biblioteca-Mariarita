@@ -42,7 +42,6 @@ const UsersPage = () => {
       await addUser({
         name: data.name,
         email: data.email,
-        password: data.password,
       });
       showSuccess('Usuário adicionado com sucesso!');
       setIsDialogOpen(false);

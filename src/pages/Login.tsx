@@ -14,11 +14,11 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const { login, usersLoaded } = useAuth();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!usersLoaded) return;
 
-    if (login(email, password)) {
+    if (await login(email, password)) {
       navigate('/');
     } else {
       showError('Email ou senha inválidos.');

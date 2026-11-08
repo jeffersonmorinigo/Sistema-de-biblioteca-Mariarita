@@ -15,7 +15,6 @@ import {
 const userSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
   email: z.string().email('Email inválido'),
-  password: z.string().min(6, 'A senha deve ter no mínimo 6 caracteres'),
 });
 
 export type UserFormData = z.infer<typeof userSchema>;
@@ -55,11 +54,6 @@ const UserForm = ({ onSubmit, closeDialog }: UserFormProps) => {
             <Label htmlFor="email" className="text-right">Email</Label>
             <Input id="email" type="email" {...register('email')} className="col-span-3" />
             {errors.email && <p className="col-span-4 text-red-500 text-sm text-right">{errors.email.message}</p>}
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="password" className="text-right">Senha</Label>
-            <Input id="password" type="password" {...register('password')} className="col-span-3" />
-            {errors.password && <p className="col-span-4 text-red-500 text-sm text-right">{errors.password.message}</p>}
           </div>
         </div>
         <DialogFooter>

@@ -32,7 +32,6 @@ const AppRoutes = () => {
       <GlobalUpdateNotifier />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/coletor" element={<MobileCollectorPage />} />
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>

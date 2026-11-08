@@ -314,7 +314,6 @@ export function initializeDefaultLocalData(): void {
       id: 'admin_master',
       name: 'Administrador',
       email: 'admin@biblioteca.com',
-      password: 'admin123',
     };
     saveLocalCollection('users', [adminUser], false);
   }

@@ -155,7 +155,6 @@ export function sanitizeDataForFirestore(collectionName: string, rawData: any): 
     return {
       name: String(data.name || 'Usuário').trim(),
       email: String(data.email || '').trim().toLowerCase(),
-      password: String(data.password || '').trim(),
       isDeleted: false,
       status: 'active',
     };
